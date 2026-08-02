@@ -1,0 +1,1 @@
+export const LegacyIcon = ({ name }) => <i className={`fas ${name}`} aria-hidden="true" />;

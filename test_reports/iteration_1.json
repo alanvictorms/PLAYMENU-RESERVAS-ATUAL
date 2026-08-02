@@ -1,0 +1,26 @@
+{
+  "summary": "Cloned PlayMenu FastAPI project tested end-to-end. Backend: 22/22 pytest tests passed (auth for all 4 roles, /api/auth/me, superadmin dashboard/restaurants/agents/plans/settings, agent dashboard/restaurants/representatives, public menu by slug, RBAC forbidden). Frontend: all requested flows work — landing renders with PlayMenu branding, /login has email/password + Entrar, /cadastro and /recuperar-senha render, admin@playmenu.app/123456 lands on /superadmin dashboard showing 4 restaurants, 3 active, 6 agents, 1 pending; modelo1@playmenu.com routes to /admin; lula@playmenu.app routes to /gerente; /superadmin/restaurantes and /superadmin/agentes render lists; /cardapio loads default active restaurant menu (Modelo1) with categories and products.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Landing (/)", "issues": ["Browser tab <title> is 'Emergent | Fullstack App' instead of 'PlayMenu' — set index.html <title> and document meta to PlayMenu branding."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": ["(Minor) Update index.html <title> to 'PlayMenu' so browser tab reflects brand instead of default Emergent title."],
+  "critical_code_review_comments": [
+    "server.py resets ALL passwords to '123456' on every startup (reset_all_passwords). This is intended for the migration but is a security hazard — remove or gate behind an env flag before any production deploy.",
+    "routes_auth.py forgot_reset requires password length >=6 but register/agent creation allow >=4; inconsistent password policy across endpoints.",
+    "CORS: allow_credentials is computed as (CORS_ORIGINS != '*') while allow_origins defaults to '*'; combination fine but risky if env changes — validate explicitly.",
+    "routes_management.py is ~350 lines mixing agent + superadmin + qr templates + platform settings; consider splitting for maintainability."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% of requested flows"},
+  "test_credentials": "Used /app/memory/test_credentials.md — all 4 roles login with password 123456.",
+  "seed_data_creation": "None; used legacy_seed data already present.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite lives at /app/backend/tests/backend_test.py (pytest, JUnit at /app/test_reports/pytest/pytest_results.xml). All auth roles, RBAC and public menu endpoints covered. Frontend uses legacy CSS via useLegacyStyles hook — pages render correctly. Reset-passwords-on-startup logic in server.py resets every user to 123456 each restart; keep this in mind if you create new test users."
+}

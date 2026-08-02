@@ -1,0 +1,239 @@
+
+  <div class="bio-builder-app" id="bioBuilderApp">
+    <header class="builder-appbar">
+      <div class="builder-brand" aria-label="PlayMenu Bio">
+        <span class="builder-brand__mark"><i class="bi bi-link-45deg"></i></span>
+        <span class="builder-brand__copy"><strong>PlayMenu Bio</strong><small>Editor da página</small></span>
+      </div>
+
+      <label class="builder-project-field" for="projectName">
+        <span class="visually-hidden">Nome da página</span>
+        <i class="bi bi-pencil-square" aria-hidden="true"></i>
+        <input id="projectName" type="text" value="Minha página" maxlength="80" autocomplete="off">
+      </label>
+
+      <div class="builder-appbar__actions" aria-label="Ações do projeto">
+        <button class="builder-icon-button" id="undoBtn" type="button" aria-label="Desfazer" title="Desfazer"><i class="bi bi-arrow-counterclockwise"></i></button>
+        <button class="builder-icon-button" id="redoBtn" type="button" aria-label="Refazer" title="Refazer"><i class="bi bi-arrow-clockwise"></i></button>
+        <button class="builder-icon-button" id="previewBtn" type="button" aria-label="Visualizar página" title="Visualizar"><i class="bi bi-eye"></i></button>
+        <button class="builder-publish-button" id="publishBtn" type="button"><i class="bi bi-send-check"></i><span>Publicar</span></button><button class="builder-save-button" id="saveBtn" type="button"><i class="bi bi-check2-circle"></i><span>Salvar</span></button>
+      </div>
+    </header>
+
+    <main class="builder-main" id="conteudo-principal">
+      <section class="builder-preview-panel" aria-labelledby="previewTitle">
+        <header class="builder-preview-header">
+          <span class="builder-eyebrow">Editor visual PlayMenu Bio</span>
+          <h1 id="previewTitle">Monte sua página</h1>
+          <p>Selecione um bloco no celular para editar. Use as ferramentas ao lado para adicionar, organizar e personalizar.</p>
+        </header>
+        <div id="editorTipNotification" class="editor-tip-notification" aria-live="polite">
+          <div class="alert alert-primary alert-dismissible d-flex align-items-start gap-2 mb-0 shadow-lg" role="alert">
+
+            <div class="editor-tip-content">
+              <strong>🥰 Dica:</strong>
+              toque em qualquer bloco para exibir Editar, Arrastar, Duplicar,
+              Ocultar e Excluir.
+            </div>
+
+            <button
+              type="button"
+              class="btn-close"
+              aria-label="Fechar"
+              id="closeEditorTip">
+            </button>
+          </div>
+        </div>
+        <div class="phone-stage" id="phoneStage">
+          <div class="phone-frame" id="phoneFrame">
+            <div class="phone-island" aria-hidden="true"></div>
+            <div class="phone-screen" id="phoneScreen">
+              <div class="bio-page" id="bioCanvas" aria-label="Prévia da página mobile"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="builder-bottom-dock" aria-label="Ferramentas do editor">
+      <button type="button" data-open-sheet="modelsSheet"><i class="bi bi-grid-1x2"></i><span>Modelos</span></button>
+      <button type="button" data-open-sheet="appearanceSheet"><i class="bi bi-palette"></i><span>Aparência</span></button>
+      <button class="builder-add-fab" type="button" data-open-sheet="addSheet" aria-label="Adicionar elemento"><i class="bi bi-plus-lg"></i><span>Adicionar</span></button>
+      <button type="button" data-open-sheet="organizeSheet"><i class="bi bi-layers"></i><span>Organizar</span></button>
+      <button type="button" data-open-sheet="projectsSheet"><i class="bi bi-folder2-open"></i><span>Projetos</span></button>
+    </nav>
+
+    <button class="selected-edit-fab" id="selectedEditFab" type="button" hidden><i class="bi bi-sliders"></i><span>Editar bloco</span></button>
+
+    <div class="builder-sheet-backdrop" id="sheetBackdrop" hidden></div>
+
+    <aside class="builder-sheet" id="addSheet" aria-hidden="true" aria-labelledby="addSheetTitle">
+      <div class="builder-sheet__grab" aria-hidden="true"></div>
+      <header class="builder-sheet__header">
+        <div><span class="builder-sheet__eyebrow">Adicionar</span>
+          <h2 id="addSheetTitle">Escolha um elemento</h2>
+        </div>
+        <button class="builder-sheet__close" type="button" data-close-sheet aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+      </header>
+      <div class="builder-sheet__body">
+        <div class="insert-position-card">
+          <div>
+            <i class="bi bi-signpost-split"></i><span><strong>Onde adicionar?</strong><small>O novo elemento entra na posição escolhida.</small></span>
+          </div>
+          <select class="form-select" id="insertPosition" aria-label="Posição do novo elemento"></select>
+        </div>
+        <div class="builder-search">
+          <i class="bi bi-search"></i>
+          <input id="componentSearch" type="search" placeholder="Buscar elemento..." autocomplete="off">
+        </div>
+        <div id="componentPalette"></div>
+      </div>
+    </aside>
+
+    <aside class="builder-sheet" id="organizeSheet" aria-hidden="true" aria-labelledby="organizeSheetTitle">
+      <div class="builder-sheet__grab" aria-hidden="true"></div>
+      <header class="builder-sheet__header">
+        <div><span class="builder-sheet__eyebrow">Organizar</span>
+          <h2 id="organizeSheetTitle">Ordem dos blocos</h2>
+        </div>
+        <button class="builder-sheet__close" type="button" data-close-sheet aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+      </header>
+      <div class="builder-sheet__body">
+        <div class="builder-help-card"><i class="bi bi-hand-index-thumb"></i>
+          <p><strong>Segure pela alça e arraste.</strong> No celular, o bloco levanta antes de começar a mover. Assim, o
+            texto não é selecionado.</p>
+        </div>
+        <div class="layer-list" id="layerList"></div>
+      </div>
+    </aside>
+
+    <aside class="builder-sheet" id="appearanceSheet" aria-hidden="true" aria-labelledby="appearanceSheetTitle">
+      <div class="builder-sheet__grab" aria-hidden="true"></div>
+      <header class="builder-sheet__header">
+        <div><span class="builder-sheet__eyebrow">Visual</span>
+          <h2 id="appearanceSheetTitle">Aparência da página</h2>
+        </div>
+        <button class="builder-sheet__close" type="button" data-close-sheet aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+      </header>
+      <div class="builder-sheet__body" id="designPanel"></div>
+    </aside>
+
+    <aside class="builder-sheet builder-sheet--editor" id="editSheet" aria-hidden="true"
+      aria-labelledby="inspectorTitle">
+      <div class="builder-sheet__grab" aria-hidden="true"></div>
+      <header class="builder-sheet__header builder-sheet__header--editor">
+        <div><span class="builder-sheet__eyebrow" id="inspectorSubtitle">Editor do bloco</span>
+          <h2 id="inspectorTitle">Selecione um bloco</h2>
+        </div>
+        <button class="builder-sheet__close" type="button" data-close-sheet aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+      </header>
+      <nav class="inspector-tabs" aria-label="Configurações do bloco">
+        <button class="is-active" type="button" data-inspector-tab="content"><i class="bi bi-pencil-square"></i><span>Conteúdo</span></button>
+        <button type="button" data-inspector-tab="style"><i class="bi bi-palette2"></i><span>Estilo</span></button>
+        <button type="button" data-inspector-tab="advanced"><i class="bi bi-sliders"></i><span>Avançado</span></button>
+      </nav>
+      <div class="builder-sheet__body inspector-body" id="inspectorBody"></div>
+    </aside>
+
+    <aside class="builder-sheet" id="modelsSheet" aria-hidden="true" aria-labelledby="modelsSheetTitle">
+      <div class="builder-sheet__grab" aria-hidden="true"></div>
+      <header class="builder-sheet__header">
+        <div><span class="builder-sheet__eyebrow">Comece rápido</span>
+          <h2 id="modelsSheetTitle">Modelos prontos</h2>
+        </div>
+        <button class="builder-sheet__close" type="button" data-close-sheet aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+      </header>
+      <div class="builder-sheet__body">
+        <p class="builder-sheet__intro">Escolha um modelo para seu tipo de negócio e troque apenas textos, fotos, links
+          e cores.</p>
+        <div class="preset-grid" id="presetList"></div>
+      </div>
+    </aside>
+
+    <aside class="builder-sheet" id="projectsSheet" aria-hidden="true" aria-labelledby="projectsSheetTitle">
+      <div class="builder-sheet__grab" aria-hidden="true"></div>
+      <header class="builder-sheet__header">
+        <div><span class="builder-sheet__eyebrow">Projetos</span>
+          <h2 id="projectsSheetTitle">Suas páginas</h2>
+        </div>
+        <button class="builder-sheet__close" type="button" data-close-sheet aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+      </header>
+      <div class="builder-sheet__body">
+        <button class="builder-new-project" id="newBtn" type="button"><i class="bi bi-file-earmark-plus"></i><span><strong>Criar nova página</strong><small>Começar do zero ou escolher outro modelo.</small></span></button>
+        <div class="project-list" id="projectList"></div>
+      </div>
+    </aside>
+
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true" aria-labelledby="confirmTitle">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title h5" id="confirmTitle">Confirmar ação</h2>
+            <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-0 pm-text-secondary" id="confirmText"></p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-danger" id="confirmAction" type="button">Confirmar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="assetModal" tabindex="-1" aria-hidden="true" aria-labelledby="assetModalTitle">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title h5" id="assetModalTitle">Selecionar arquivo</h2>
+              <p class="small pm-text-muted mb-0 mt-1" id="assetModalDescription">Envie um arquivo ou informe um
+                endereço.</p>
+            </div><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <div class="asset-preview" id="assetPreview">
+              <i class="bi bi-cloud-arrow-up"></i><span>Nenhum arquivo selecionado</span>
+            </div>
+            <label class="asset-dropzone" for="assetFileInput"><i class="bi bi-upload"></i><span><strong>Escolher arquivo</strong><small id="assetFileHelp">Imagem JPG, PNG ou WEBP</small></span><input id="assetFileInput" type="file" hidden></label>
+            <div class="asset-divider"><span>ou</span></div>
+            <label class="builder-field"><span>Endereço do arquivo</span><input class="form-control" id="assetUrlInput" type="url" placeholder="https://..."></label>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" id="assetApplyBtn" type="button">Usar arquivo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade" id="presetPreviewModal" tabindex="-1" aria-hidden="true" aria-labelledby="presetPreviewTitle">
+      <div class="modal-dialog modal-dialog-centered preset-preview-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <span class="builder-sheet__eyebrow">Pré-visualização</span>
+              <h2 class="modal-title h5" id="presetPreviewTitle">Modelo</h2>
+            </div>
+            <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body preset-preview-body">
+            <div class="preset-preview-phone">
+              <div class="preset-preview-island" aria-hidden="true"></div>
+              <div class="preset-preview-screen">
+                <div class="bio-page" id="presetPreviewCanvas"></div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Voltar</button>
+            <button class="btn btn-primary" id="presetPreviewUse" type="button"><i class="bi bi-check2-circle me-1"></i>Usar este modelo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+  
+  
+  
+  

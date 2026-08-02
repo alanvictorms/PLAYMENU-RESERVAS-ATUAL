@@ -1,0 +1,29 @@
+import { useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { api } from "../services/api";
+
+const Shell = ({ title, subtitle, children }) => <main className="auth-legacy"><div className="login-box"><div className="brand"><img src="/public/assets/images/logopm.png" alt="PlayMenu" /><h1>PlayMenu</h1><p>{subtitle}</p></div><h2 className="sr-only">{title}</h2>{children}</div></main>;
+
+export function LoginPage() {
+  const { login } = useAuth(); const navigate = useNavigate(); const [form, setForm] = useState({ email: "", password: "" }); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const submit = async (event) => { event.preventDefault(); setBusy(true); setError(""); try { const data = await login(form.email, form.password); navigate(data.redirect); } catch (err) { setError(err.response?.data?.detail || "Credenciais inválidas."); } finally { setBusy(false); } };
+  return <Shell title="Login" subtitle="Acesse sua conta">{error && <div className="error" role="alert">{error}</div>}<form onSubmit={submit}><div className="field"><label>E-mail</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoFocus /></div><div className="field"><label>Senha</label><input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required /></div><button className="btn" disabled={busy}>{busy ? "Entrando..." : "Entrar"}</button></form><div className="login-links"><Link to="/recuperar-senha">Recuperar senha por código</Link><Link to="/">Voltar para a landing page</Link></div></Shell>;
+}
+
+export function RegisterPage() {
+  const [params] = useSearchParams(); const navigate = useNavigate(); const [error, setError] = useState(""); const [form, setForm] = useState({ tipo: params.get("tipo") || "restaurante", ref: params.get("ref") ? Number(params.get("ref")) : null, name: "", email: "", password: "", phone: "", pix_key: "" });
+  const submit = async (e) => { e.preventDefault(); try { await api.post("/auth/register", form); navigate("/login"); } catch (err) { setError(err.response?.data?.detail || "Não foi possível cadastrar."); } };
+  return <Shell title="Cadastro" subtitle="Crie sua conta">{error && <div className="error" role="alert">{error}</div>}<form onSubmit={submit}><div className="field"><label>Tipo</label><select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}><option value="restaurante">Restaurante</option><option value="representante">Representante</option></select></div>{["name", "email", "phone", "password"].map((name) => <div className="field" key={name}><label>{{ name: "Nome", email: "E-mail", phone: "Telefone", password: "Senha" }[name]}</label><input type={name === "email" ? "email" : name === "password" ? "password" : "text"} value={form[name]} onChange={(e) => setForm({ ...form, [name]: e.target.value })} required={name !== "phone"} /></div>)}{form.tipo === "representante" && <div className="field"><label>Chave PIX</label><input value={form.pix_key} onChange={(e) => setForm({ ...form, pix_key: e.target.value })} /></div>}<button className="btn">Criar cadastro</button></form><div className="login-links"><Link to="/login">Já tenho uma conta</Link></div></Shell>;
+}
+
+export function ForgotPage() {
+  const [step, setStep] = useState(1); const [form, setForm] = useState({ email: "", code: "", password: "", confirm_password: "" }); const [message, setMessage] = useState(""); const [error, setError] = useState("");
+  const submit = async (e) => { e.preventDefault(); setError(""); try { if (step === 1) { await api.post("/auth/forgot/request", { email: form.email }); setStep(2); setMessage("Código enviado. Confira seu e-mail."); } else { if (form.password !== form.confirm_password) throw new Error("As senhas não conferem."); await api.post("/auth/forgot/reset", form); setStep(3); setMessage("Senha alterada com sucesso."); } } catch (err) { setError(err.response?.data?.detail || err.message); } };
+  return <Shell title="Recuperação" subtitle="Recuperar senha por código">{message && <div className="blocked" role="status">{message}</div>}{error && <div className="error" role="alert">{error}</div>}{step < 3 ? <form onSubmit={submit}><div className="field"><label>E-mail</label><input type="email" value={form.email} disabled={step > 1} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>{step === 2 && <><div className="field"><label>Código de 6 dígitos</label><input inputMode="numeric" maxLength="6" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required /></div><div className="field"><label>Nova senha</label><input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required /></div><div className="field"><label>Confirmar senha</label><input type="password" value={form.confirm_password} onChange={(e) => setForm({ ...form, confirm_password: e.target.value })} required /></div></>}<button className="btn">{step === 1 ? "Enviar código" : "Alterar senha"}</button></form> : <div className="login-links"><Link to="/login">Entrar com a nova senha</Link></div>}</Shell>;
+}
+
+export function VerifyPage() {
+  const [params] = useSearchParams(); const [state, setState] = useState("Confirmando..."); useState(() => { api.get("/auth/verification/confirm", { params: { type: params.get("type"), token: params.get("token") } }).then(() => setState("E-mail confirmado com sucesso.")).catch(() => setState("Link inválido ou expirado.")); });
+  return <Shell title="Validação" subtitle="Validação de e-mail"><div className="blocked" role="status">{state}</div><div className="login-links"><Link to="/login">Ir para o login</Link></div></Shell>;
+}
