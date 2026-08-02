@@ -18,7 +18,6 @@ import { LegacyIcon } from "./LegacyIcon";
 const menu = [
   ["dashboard", "fa-chart-pie", "Dashboard", "/admin"],
   ["metrics", "fa-chart-line", "Métricas", "/admin/metricas"],
-  ["categories", "fa-layer-group", "Categorias", "/admin/categorias"],
   ["products", "fa-utensils", "Produtos", "/admin/produtos"],
   [
     "menu-import",

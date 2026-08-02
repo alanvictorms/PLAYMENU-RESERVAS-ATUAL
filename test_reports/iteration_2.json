@@ -1,0 +1,29 @@
+{
+  "summary": "Retested PlayMenu after multi-select / inline categories / product edit prefill / redesigned public menu changes. Backend regression suite 22/22 passed. Frontend: all requested flows work — restaurant login (modelo1@playmenu.com) redirects to /admin; /admin/produtos renders product table with row checkboxes (data-testid select-product-<id>), header select-all checkbox, and a bulk-delete button ('Excluir X') that appears when items are selected; 'Gerenciar categorias' toggle opens inline category management panel (data-testid category-panel) with name input + save button + full category table (edit/toggle/delete/create). Product edit page (/admin/produto?id=44) correctly pre-fills Preço='32,00' (bug fix confirmed — no longer 0,00) and Categoria dropdown shows 'SOBREMESAS' (value=59) once categories finish loading. Public menu at /cardapio?r=modelo1 renders dark theme (rgb(11,11,13)), hero with cover + logo + store title, search input, category chips, product cards with orange '+' add buttons and play icons over videos. SuperAdmin (admin@playmenu.app) still logs in and reaches /superadmin.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ProductFormPage (/admin/produto?id=X)", "issues": ["Race condition: categories are fetched separately from the product. On first mount the select renders with only 'Sem categoria' (cats=[]) so defaultValue can't bind; after cats arrive the option appears and the select ends up showing the correct category, but there is a brief flash where the dropdown looks empty. Consider gating the `ready` state on BOTH productLoad.data AND cats being populated, e.g. `setReady(true)` only when `id && productLoad.data && cats.length>0`. This will eliminate the flash and any flakiness in tests that read the value too early."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "(Minor UX) In ProductFormPage, delay `ready` until BOTH the product AND the categories list have loaded, otherwise the Categoria dropdown briefly shows 'Sem categoria' before snapping to the correct value."
+  ],
+  "critical_code_review_comments": [
+    "RestaurantPages.jsx duplicates all Category CRUD logic between CategoriesPage and ProductsPage (submit, action, choose handlers). Extract into a shared hook/component to keep behaviour consistent and reduce ~15 duplicated lines.",
+    "ProductsPage.bulkDelete performs deletes in a sequential for-loop of PATCH calls instead of Promise.all — noticeable latency when many items selected. Consider Promise.all or a dedicated bulk endpoint (POST /restaurant/products/bulk-delete).",
+    "ProductFormPage: `cats` is derived every render as `useLoad(...).data || []`, meaning the reference changes each render and any downstream memoization will bust. Prefer destructuring `data` once and defaulting via useMemo.",
+    "RestaurantPages.jsx is 126 lines but each line is extremely long (multiple sections/JSX on a single line). File is hard to review — consider splitting per page and using multi-line JSX."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% of requested flows (with one minor race-condition note)"},
+  "test_credentials": "Used /app/memory/test_credentials.md (modelo1@playmenu.com / admin@playmenu.app, both 123456).",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend suite at /app/backend/tests/backend_test.py (pytest, JUnit at /app/test_reports/pytest/pytest_results.xml). Products endpoint /api/restaurant/products/{id} returns price_cents (int) and category_id (int) — confirmed via curl. ProductFormPage uses a `key` on <form> plus a `ready` state to only render after productLoad.data arrives; this fixes defaultValue prefill for price. Category dropdown depends on a SEPARATE useLoad('/restaurant/categories') that is NOT part of the ready gate — see design_issues note.",
+  "rca of the issue": "Original bug: React's uncontrolled defaultValue captures the value at first mount. When product data arrived asynchronously (initial p={}), defaultValue was 0/''; when it updated the DOM didn't re-read defaultValue. Fix in ProductFormPage: (1) delay rendering the form until product is loaded (setReady only after productLoad.data), (2) put a `key={product-form-<id>}` on the <form> so a stale mount is discarded. This works for Preço/Título/etc. because those depend only on productLoad. For Categoria the same pattern is applied, but the <option> list comes from a second async call; if cats hasn't resolved when the form mounts, the option with value=59 doesn't exist yet and the select falls back to ''. Empirically browsers still ended up selecting the correct option once cats arrived, so the visible fix works, but the ready gate should also wait for cats to fully eliminate the race."
+}
