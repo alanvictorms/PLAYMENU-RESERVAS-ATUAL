@@ -893,7 +893,6 @@ body.restaurant-bio-builder-page .bio-builder-app {
 @media (max-width: 860px) {
   body.restaurant-bio-builder-page .restaurant-main.ui-kit-main {
     width: 100%;
-    padding-top: 70px;
   }
 }
 

@@ -30,7 +30,7 @@ export default function BioBuilderPage() {
         await loadScript("/bio-builder/js/playmenu-ui.js");
         await loadScript("/bio-builder/js/playmenu-bio-builder-mobile.js");
       } catch { setError("Não foi possível inicializar as ferramentas do editor."); }
-    })();
+    })(); 
     return () => {
       document.querySelectorAll('script[data-bio-script="/bio-builder/js/playmenu-ui.js"],script[data-bio-script="/bio-builder/js/playmenu-bio-builder-mobile.js"]').forEach((script) => script.remove());
       delete window.PLAYMENU_BIO_API;

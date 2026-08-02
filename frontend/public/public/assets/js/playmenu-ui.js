@@ -1144,6 +1144,28 @@ if (document.readyState === "complete") {
     }
   }
 
+  function aplicarMicroZoom() {
+      const elemento = document.documentElement;
+      const zoomOriginal = elemento.style.zoom;
+
+      // Aumenta exatamente 0,01%
+      elemento.style.zoom = "100.01%";
+
+      // Aguarda dois frames para o navegador renderizar a alteração
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          elemento.style.zoom = zoomOriginal;
+        });
+      });
+    }
+
+    // Executa assim que toda a página terminar de carregar
+    if (document.readyState === "complete") {
+      aplicarMicroZoom();
+    } else {
+      window.addEventListener("load", aplicarMicroZoom, { once: true });
+    }
+
   function init() {
     body = document.querySelector(BODY_SELECTOR);
     if (!body) return;
@@ -1182,3 +1204,5 @@ if (document.readyState === "complete") {
     init();
   }
 })();
+
+

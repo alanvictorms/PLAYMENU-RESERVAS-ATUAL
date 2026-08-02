@@ -43,7 +43,6 @@ const menu = [
 export const RestaurantLayout = () => {
   useLegacyStyles(
     "/public/assets/css/playmenu-ui.css",
-    "/public/assets/js/playmenu-ui.js",
     "ui-kit-page restaurant-admin-page"
   );
 

@@ -1648,8 +1648,8 @@ a {
     display: none;
   }
 
-  .mobile-topbar {
-    display: none;
+  .mobile-topbar {s
+    display: flex;
   }
 
   .sidebar.open {
@@ -2384,6 +2384,64 @@ a {
 .ui-field textarea {
   min-height: 112px;
   resize: vertical;
+}
+
+/* Input de arquivo elegante */
+.ui-field input[type='file'] {
+  min-height: 58px;
+  padding: 7px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.14);
+  background: rgba(50, 44, 64, 0.72);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.ui-field input[type='file']:hover {
+  border-color: rgba(255, 122, 0, 0.65);
+  background: rgba(255, 122, 0, 0.06);
+}
+
+.ui-field input[type='file']:focus {
+  border-style: solid;
+  border-color: var(--orange);
+  box-shadow: var(--ui-focus);
+}
+
+/* Botão interno */
+.ui-field input[type='file']::file-selector-button {
+  height: 42px;
+  margin-right: 14px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 3px);
+  background: var(--orange);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    filter 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.ui-field input[type='file']::file-selector-button:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 6px 18px rgba(255, 122, 0, 0.22);
+}
+
+.ui-field input[type='file']::file-selector-button:active {
+  transform: scale(0.97);
+}
+
+.ui-field input[type='file']:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ui-field input[type='file']:disabled::file-selector-button {
+  cursor: not-allowed;
 }
 
 .ui-field input::placeholder,
@@ -4702,7 +4760,7 @@ body.restaurant-admin-page [hidden] {
 }
 
 .ui-inline-actions {
-  display: flex;
+  display: grid;
   align-items: center;
   flex-wrap: wrap;
   gap: 9px;
@@ -4909,6 +4967,7 @@ body.restaurant-admin-page [hidden] {
 .ui-hero-panel__meta {
   display: grid;
   gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   position: relative;
   z-index: 1;
 }
@@ -5025,6 +5084,86 @@ body.restaurant-admin-page [hidden] {
 
 .restaurant-table {
   table-layout: auto;
+}
+
+/* Coluna de seleção */
+.ui-table th:first-child,
+.ui-table td:first-child {
+  width: 52px;
+  min-width: 52px;
+  padding-right: 10px;
+  padding-left: 16px;
+  text-align: center;
+}
+
+/* Checkbox da primeira coluna */
+.ui-table th:first-child input[type='checkbox'],
+.ui-table td:first-child input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  width: 21px;
+  height: 21px;
+  margin: 0;
+  place-content: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  vertical-align: middle;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+
+/* Ícone de confirmação */
+.ui-table th:first-child input[type='checkbox']::before,
+.ui-table td:first-child input[type='checkbox']::before {
+  width: 10px;
+  height: 6px;
+  content: '';
+  border-bottom: 2px solid #fff;
+  border-left: 2px solid #fff;
+  opacity: 0;
+  transform: rotate(-45deg) scale(0.4);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.ui-table th:first-child input[type='checkbox']:hover,
+.ui-table td:first-child input[type='checkbox']:hover {
+  border-color: var(--orange);
+  background: rgba(255, 122, 0, 0.1);
+}
+
+.ui-table th:first-child input[type='checkbox']:checked,
+.ui-table td:first-child input[type='checkbox']:checked {
+  border-color: var(--orange);
+  background: var(--orange);
+  box-shadow: 0 4px 14px rgba(255, 122, 0, 0.3);
+}
+
+.ui-table th:first-child input[type='checkbox']:checked::before,
+.ui-table td:first-child input[type='checkbox']:checked::before {
+  opacity: 1;
+  transform: rotate(-45deg) scale(1);
+}
+
+.ui-table th:first-child input[type='checkbox']:active,
+.ui-table td:first-child input[type='checkbox']:active {
+  transform: scale(0.9);
+}
+
+.ui-table th:first-child input[type='checkbox']:focus-visible,
+.ui-table td:first-child input[type='checkbox']:focus-visible {
+  box-shadow: var(--ui-focus);
+}
+
+/* Destaca a linha selecionada */
+.ui-table tbody tr:has(td:first-child input[type='checkbox']:checked) {
+  background: rgba(255, 122, 0, 0.055);
 }
 
 .restaurant-table th:nth-child(n) {
@@ -5164,13 +5303,12 @@ body.restaurant-admin-page [hidden] {
 
 .ui-choice-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 11px;
 }
 
 .ui-choice-card {
   min-width: 0;
-  min-height: 104px;
   padding: 15px;
   border: 1px solid var(--ui-border);
   border-radius: var(--radius-md);
@@ -5194,6 +5332,7 @@ body.restaurant-admin-page [hidden] {
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
+  display: none;
   margin-top: 2px;
   accent-color: var(--orange);
 }
@@ -5422,6 +5561,18 @@ body.restaurant-admin-page [hidden] {
   display: grid;
   grid-template-columns: minmax(130px, 0.75fr) minmax(130px, 0.8fr) minmax(220px, 1.5fr) minmax(150px, 0.8fr) auto;
   align-items: center;
+  gap: 9px;
+}
+
+.ui-social-row input, select {
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: #322C40;
+  display: grid;
+  grid-template-columns: minmax(130px, 0.75fr) minmax(130px, 0.8fr) minmax(220px, 1.5fr) minmax(150px, 0.8fr) auto;
+  align-items: center;
+  font-size: 15px;
   gap: 9px;
 }
 
@@ -5768,7 +5919,7 @@ body.restaurant-admin-page [hidden] {
   .ui-media-grid-admin { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ui-info-grid-admin { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ui-product-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ui-social-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  //* .ui-social-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } *//
   .ui-social-row > .ui-btn { justify-self: end; }
 }
 
@@ -5889,7 +6040,7 @@ body.restaurant-admin-page [hidden] {
 
 @media (max-width: 860px) {
   .mobile-topbar {
-    display: none;
+    display: flex;
   }
 
   .sidebar {
@@ -5955,8 +6106,8 @@ body.restaurant-admin-page [hidden] {
 .ui-menu-import-intro h2 {
   max-width: 760px;
   margin: 8px 0 12px;
-  font-size: clamp(26px, 3vw, 42px);
-  line-height: 1.05;
+  font-size: clamp(25px, 1.5vw, 22px);
+  line-height: 1.05; 
 }
 .ui-menu-import-intro > p { max-width: 760px; color: var(--text-secondary); line-height: 1.65; }
 .ui-numbered-steps { display: grid; gap: 14px; margin: 30px 0 0; padding: 0; list-style: none; }
@@ -5971,6 +6122,105 @@ body.restaurant-admin-page [hidden] {
   min-height: 240px; padding: 28px; border: 1px dashed rgba(244, 88, 28, .55); border-radius: 22px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center;
   background: rgba(244, 88, 28, .06);
+}
+/* Área de upload administrativa */
+.ui-upload-drop-admin {
+  position: relative;
+  display: flex;
+  min-height: 110px;
+  padding: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 122, 0, 0.035),
+      rgba(50, 44, 64, 0.72)
+    );
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.ui-upload-drop-admin:hover,
+.ui-upload-drop-admin:focus-within {
+  border-color: var(--orange);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 122, 0, 0.1),
+      rgba(50, 44, 64, 0.82)
+    );
+  box-shadow: var(--ui-focus);
+}
+
+/* Input de arquivo */
+.ui-upload-drop-admin input[type='file'] {
+  width: 100%;
+  min-height: 58px;
+  padding: 7px;
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: calc(var(--radius-sm) - 3px);
+  outline: none;
+  background: rgba(18, 15, 25, 0.45);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.ui-upload-drop-admin input[type='file']:hover {
+  border-color: rgba(255, 122, 0, 0.5);
+  background: rgba(255, 122, 0, 0.055);
+}
+
+.ui-upload-drop-admin input[type='file']:focus {
+  border-color: var(--orange);
+}
+
+/* Botão "Escolher arquivo" */
+.ui-upload-drop-admin input[type='file']::file-selector-button {
+  height: 42px;
+  margin-right: 14px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 6px);
+  background: var(--orange);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    filter 0.2s ease,
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
+}
+
+.ui-upload-drop-admin input[type='file']::file-selector-button:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 6px 18px rgba(255, 122, 0, 0.25);
+}
+
+.ui-upload-drop-admin input[type='file']::file-selector-button:active {
+  transform: scale(0.96);
+} 
+
+.ui-upload-drop-admin input[type='file']:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ui-upload-drop-admin input[type='file']:disabled::file-selector-button {
+  cursor: not-allowed;
 }
 .ui-upload-drop-admin > i { margin-bottom: 8px; color: var(--orange-soft); font-size: 42px; }
 .ui-upload-drop-admin span { color: var(--text-secondary); font-size: 12px; }
