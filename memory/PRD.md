@@ -34,6 +34,12 @@ Set all user passwords (including admin) to: 123456
 - Legacy data seeded from SQL dump (4 restaurants, 6 agents, 1 admin)
 - 22/22 backend tests passing, 100% frontend flows working
 
+### Iteration 2 - Changes (Aug 2, 2026)
+- ProductsPage: Multi-select with checkboxes + bulk delete button
+- ProductsPage: Inline category management panel (create/edit/delete categories)
+- ProductFormPage: Fixed bug where price and category were not pre-filled when editing
+- PublicMenu: Updated to match reference design with "+" buttons on cards, play icons
+
 ## Prioritized Backlog
 - P0: Project running successfully ✅
 - P1: User awaiting instructions for modifications
