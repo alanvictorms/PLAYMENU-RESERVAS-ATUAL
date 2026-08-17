@@ -1,5 +1,7 @@
 import logging
 import os
+import asyncio
+from contextlib import suppress
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +11,8 @@ from app_core import client
 from legacy_seed import seed_legacy_data
 from auth_service import hash_password
 from routes_auth import router as auth_router
+from routes_booking import router as booking_router
+from reservation_service import reminder_worker
 from routes_management import router as management_router
 from routes_public import router as public_router
 from routes_restaurant import router as restaurant_router
@@ -24,6 +28,7 @@ app.include_router(auth_router)
 app.include_router(restaurant_router)
 app.include_router(management_router)
 app.include_router(video_router)
+app.include_router(booking_router)
 app.include_router(public_router)
 
 app.add_middleware(
@@ -41,23 +46,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def reset_all_passwords():
-    """Reset all user passwords to 123456"""
-    from app_core import db
-    new_hash = hash_password("123456")
-    for collection in ["admins", "agents", "restaurants"]:
-        result = await db[collection].update_many(
-            {"password_hash": {"$exists": True}},
-            {"$set": {"password_hash": new_hash}}
-        )
-        if result.modified_count:
-            logger.info(f"Reset {result.modified_count} passwords in {collection}")
-
 @app.on_event("startup")
 async def startup():
     await seed_legacy_data()
-    await reset_all_passwords()
+    from app_core import db
+    await db.booking_customers.create_index([("restaurant_id", 1), ("phone_e164", 1)], unique=True)
+    await db.reservations.create_index([("restaurant_id", 1), ("starts_at", 1)])
+    await db.reservations.create_index("public_token", unique=True)
+    await db.waitlist_entries.create_index("public_token", unique=True)
+    await db.waitlist_entries.create_index([("restaurant_id", 1), ("status", 1), ("joined_at", 1)])
+    app.state.reservation_reminder_task = asyncio.create_task(reminder_worker())
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    task = getattr(app.state, "reservation_reminder_task", None)
+    if task:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
     client.close()

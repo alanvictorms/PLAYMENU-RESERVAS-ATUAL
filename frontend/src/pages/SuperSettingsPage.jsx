@@ -21,7 +21,7 @@ export default function SuperSettingsPage() {
     setNotice({});
     try {
       await api.post("/superadmin/settings", Object.fromEntries(new FormData(event.currentTarget)));
-      setNotice({ message: section === "ai" ? "Configuração de IA salva." : "Configuração de e-mail salva." });
+      setNotice({ message: section === "ai" ? "Configuração de IA salva." : section === "asaas" ? "Configuração do Asaas salva." : section === "evolution" ? "Configuração da Evolution API salva." : "Configuração de e-mail salva." });
       load();
     } catch (error) {
       setNotice({ error: error.response?.data?.detail || "Não foi possível salvar as configurações." });
@@ -58,6 +58,41 @@ export default function SuperSettingsPage() {
           </div>
           <div className="ai-settings-note"><i className="fas fa-shield-halved" /><span>A chave não é enviada novamente ao navegador depois de salva. Para cardápios, recomendamos gpt-5.6-luna e 60 segundos; análises longas continuam em segundo plano.</span></div>
           <button className="btn btn-primary" disabled={saving === "ai"}>{saving === "ai" ? "Salvando..." : "Salvar configuração de IA"}</button>
+        </form>
+      </div>
+    </div>
+
+    <div className="card" style={{ marginBottom: 27 }}>
+      <div className="card-header">
+        <div><h3>Integração Asaas</h3><p>Credenciais usadas para gerar cobranças de assinatura, vídeos avulsos e receber o webhook de pagamento.</p></div>
+        <span className={`badge ${settings.asaas_api_key_configured ? "badge-green" : "badge-orange"}`}>{settings.asaas_api_key_configured ? "Chave configurada" : "Configuração pendente"}</span>
+      </div>
+      <div className="card-body">
+        <form onSubmit={(event) => submit(event, "asaas")}>
+          <div className="grid-2">
+            <Field label="URL base da API" name="asaas_base_url" type="url" defaultValue={settings.asaas_base_url || "https://api.asaas.com/v3"} placeholder="https://api.asaas.com/v3" />
+            <Field label={settings.asaas_api_key_configured ? "Nova chave de API (deixe vazio para manter)" : "Chave de API"} name="asaas_api_key" type="password" defaultValue="" autoComplete="new-password" required={!settings.asaas_api_key_configured} />
+            <Field label={settings.asaas_webhook_secret_configured ? "Novo segredo do webhook (deixe vazio para manter)" : "Segredo do webhook (opcional)"} name="asaas_webhook_secret" type="password" defaultValue="" autoComplete="new-password" />
+          </div>
+          <div className="ai-settings-note"><i className="fas fa-shield-halved" /><span>As chaves não são reenviadas ao navegador depois de salvas. Cadastre em Asaas &gt; Integrações o endpoint <code>/api/webhooks/asaas</code> com este mesmo segredo no cabeçalho <code>asaas-access-token</code>.</span></div>
+          <button className="btn btn-primary" disabled={saving === "asaas"}>{saving === "asaas" ? "Salvando..." : "Salvar configuração do Asaas"}</button>
+        </form>
+      </div>
+    </div>
+
+    <div className="card" style={{ marginBottom: 27 }}>
+      <div className="card-header">
+        <div><h3>Evolution API · WhatsApp</h3><p>Credenciais globais usadas para criar uma instância isolada para cada restaurante.</p></div>
+        <span className={`badge ${settings.evolution_api_key_configured ? "badge-green" : "badge-orange"}`}>{settings.evolution_api_key_configured ? "Chave configurada" : "Configuração pendente"}</span>
+      </div>
+      <div className="card-body">
+        <form onSubmit={(event) => submit(event, "evolution")}>
+          <div className="grid-2">
+            <Field label="URL base da Evolution API" name="evolution_api_url" type="url" defaultValue={settings.evolution_api_url} placeholder="https://evolution.seudominio.com" required />
+            <Field label={settings.evolution_api_key_configured ? "Nova chave global (deixe vazio para manter)" : "Chave global da API"} name="evolution_api_key" type="password" defaultValue="" autoComplete="new-password" required={!settings.evolution_api_key_configured} />
+          </div>
+          <div className="ai-settings-note"><i className="fas fa-shield-halved" /><span>A chave fica somente no servidor. Ao conectar, o PlayMenu cria uma instância WHATSAPP-BAILEYS para o restaurante e acompanha QR Code e status por webhook e consulta de estado.</span></div>
+          <button className="btn btn-primary" disabled={saving === "evolution"}>{saving === "evolution" ? "Salvando..." : "Salvar Evolution API"}</button>
         </form>
       </div>
     </div>

@@ -210,6 +210,68 @@ function PasswordInput({
   );
 }
 
+const PASSWORD_RULES = [
+  { id: "length", label: "8 caracteres ou mais", test: (value) => value.length >= 8 },
+  { id: "case", label: "Letras maiúsculas e minúsculas", test: (value) => /[a-z]/.test(value) && /[A-Z]/.test(value) },
+  { id: "number", label: "Pelo menos um número", test: (value) => /\d/.test(value) },
+  { id: "symbol", label: "Pelo menos um símbolo", test: (value) => /[^A-Za-z0-9]/.test(value) },
+];
+
+const STRENGTH_LEVELS = [
+  { label: "Muito fraca", color: "#ff7a63" },
+  { label: "Fraca", color: "#ffa04b" },
+  { label: "Boa", color: "#ffc043" },
+  { label: "Forte", color: "#4ade80" },
+];
+
+export function passwordStrength(password) {
+  const value = password || "";
+  const passed = PASSWORD_RULES.filter((rule) => rule.test(value));
+  const score = value ? Math.max(1, passed.length) : 0;
+
+  return {
+    score,
+    passed: passed.map((rule) => rule.id),
+    ...(score ? STRENGTH_LEVELS[score - 1] : { label: "", color: "" }),
+  };
+}
+
+function PasswordStrength({ value }) {
+  const { score, passed, label, color } = passwordStrength(value);
+
+  if (!value) return null;
+
+  return (
+    <div className="pw-strength">
+      <div className="pw-strength__bars" aria-hidden="true">
+        {[0, 1, 2, 3].map((index) => (
+          <span
+            key={index}
+            className="pw-strength__bar"
+            style={index < score ? { background: color } : undefined}
+          />
+        ))}
+      </div>
+
+      <p className="pw-strength__label" role="status">
+        Força da senha: <strong style={{ color }}>{label}</strong>
+      </p>
+
+      <ul className="pw-strength__rules">
+        {PASSWORD_RULES.map((rule) => (
+          <li
+            key={rule.id}
+            className={passed.includes(rule.id) ? "is-done" : ""}
+          >
+            <span aria-hidden="true">{passed.includes(rule.id) ? "✓" : "•"}</span>
+            {rule.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function LoginVisual() {
   const [activeVideo, setActiveVideo] = useState(0);
   const videoRefs = useRef([]);
@@ -380,32 +442,68 @@ export function LoginPage() {
   );
 }
 
+const formatPhone = (raw) => {
+  const digits = String(raw || "").replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+};
+
 export function RegisterPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Quando o tipo já vem na URL (ex.: /cadastro?tipo=restaurante) o seletor
+  // de tipo de conta fica oculto e o valor é fixado pelo link de origem.
+  const typeFromUrl = params.get("tipo");
   const [form, setForm] = useState(() => ({
-    tipo: params.get("tipo") || "restaurante",
+    tipo: typeFromUrl || "restaurante",
     ref: params.get("ref") ? Number(params.get("ref")) : null,
     name: "",
     email: "",
     password: "",
+    confirm_password: "",
     phone: "",
     pix_key: "",
   }));
 
   const submit = async (event) => {
     event.preventDefault();
-    setBusy(true);
     setError("");
 
+    if (form.password.length < 6) {
+      setError("A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+
+    if (form.password !== form.confirm_password) {
+      setError("As senhas não conferem.");
+      return;
+    }
+
+    setBusy(true);
+
     try {
-      await api.post("/auth/register", form);
-      navigate("/login");
+      const { confirm_password, ...payload } = form;
+      await api.post("/auth/register", {
+        ...payload,
+        phone: payload.phone.replace(/\D/g, ""),
+      });
+
+      // Entra automaticamente na conta recém-criada e segue direto para o
+      // onboarding, sem passar pela tela de login.
+      const session = await login(form.email, form.password);
+      navigate(session.redirect || "/admin/configuracao-inicial", { replace: true });
     } catch (err) {
       setError(err.response?.data?.detail || "Não foi possível cadastrar.");
-    } finally {
       setBusy(false);
     }
   };
@@ -419,34 +517,50 @@ export function RegisterPage() {
       <AuthAlert>{error}</AuthAlert>
 
       <form onSubmit={submit}>
-        <div className="field">
-          <label htmlFor="tipo">Tipo de conta</label>
-          <select
-            id="tipo"
-            value={form.tipo}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, tipo: event.target.value }))
-            }
-            style={selectStyle}
-          >
-            <option value="restaurante">Restaurante</option>
-            <option value="representante">Representante</option>
-          </select>
-        </div>
+        {!typeFromUrl && (
+          <div className="field">
+            <label htmlFor="tipo">Tipo de conta</label>
+            <select
+              id="tipo"
+              value={form.tipo}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, tipo: event.target.value }))
+              }
+              style={selectStyle}
+            >
+              <option value="restaurante">Restaurante</option>
+              <option value="representante">Representante</option>
+            </select>
+          </div>
+        )}
 
         <TextInput
           id="name"
-          label="Nome"
+          label="Nome do responsável"
           value={form.name}
           onChange={(name) => setForm((current) => ({ ...current, name }))}
-          placeholder="Seu nome ou nome do estabelecimento"
+          placeholder="Como podemos te chamar?"
           autoComplete="name"
           required
         />
 
         <TextInput
+          id="phone"
+          label="Telefone"
+          type="tel"
+          value={form.phone}
+          onChange={(phone) =>
+            setForm((current) => ({ ...current, phone: formatPhone(phone) }))
+          }
+          placeholder="(85) 99999-9999"
+          autoComplete="tel"
+          inputMode="tel"
+          required
+        />
+
+        <TextInput
           id="register-email"
-          label="E-mail"
+          label="E-mail de login"
           type="email"
           value={form.email}
           onChange={(email) => setForm((current) => ({ ...current, email }))}
@@ -456,24 +570,30 @@ export function RegisterPage() {
           icon={<MailIcon />}
         />
 
-        <TextInput
-          id="phone"
-          label="Telefone"
-          type="tel"
-          value={form.phone}
-          onChange={(phone) => setForm((current) => ({ ...current, phone }))}
-          placeholder="(85) 99999-9999"
-          autoComplete="tel"
-          inputMode="tel"
-        />
-
         <PasswordInput
           id="register-password"
-          label="Senha"
+          label="Senha de login"
           value={form.password}
           onChange={(password) => setForm((current) => ({ ...current, password }))}
           autoComplete="new-password"
         />
+
+        <PasswordStrength value={form.password} />
+
+        <PasswordInput
+          id="register-confirm-password"
+          label="Confirmar senha"
+          value={form.confirm_password}
+          onChange={(confirm_password) =>
+            setForm((current) => ({ ...current, confirm_password }))
+          }
+          placeholder="Repita a senha"
+          autoComplete="new-password"
+        />
+
+        {form.confirm_password && form.password !== form.confirm_password && (
+          <p className="pw-mismatch">As senhas não conferem.</p>
+        )}
 
         {form.tipo === "representante" && (
           <TextInput

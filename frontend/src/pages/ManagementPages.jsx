@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { AdminHeader, Alert } from "../components/AdminLayout";
+import { GaugeChart } from "../components/charts/GaugeChart";
+import { BarChart } from "../components/charts/BarChart";
 import { api, mediaUrl, money } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -11,6 +13,10 @@ const Table = ({ headers, rows, render }) => <div className="table-wrap"><table 
 const Empty = ({ text }) => <div className="empty-state"><i className="fas fa-box-open" /><p>{text}</p></div>;
 const Badge = ({ children, tone = "gray" }) => <span className={`badge badge-${tone}`}>{children}</span>;
 const Notice = ({ notice }) => notice?.message ? <Alert>{notice.message}</Alert> : notice?.error ? <Alert type="error">{notice.error}</Alert> : null;
+// Ação compacta: apenas o ícone, com o texto no tooltip e para leitores de tela.
+const IconBtn = ({ as: Tag = "button", icon, label, tone = "outline", ...rest }) => <Tag className={`btn btn-sm btn-${tone} btn-icon`} title={label} aria-label={label} {...(Tag === "button" ? { type: "button" } : {})} {...rest}><i className={`fas ${icon}`} aria-hidden="true" /></Tag>;
+const StatusBadge = ({ status }) => { const [tone, icon, label] = status === "active" ? ["is-active", "fa-circle-check", "Ativo"] : status === "pending" ? ["is-pending", "fa-clock", "Pendente"] : ["is-off", "fa-circle-minus", "Inativo"]; return <span className={`badge-soft ${tone}`} title={status}><i className={`fas ${icon}`} aria-hidden="true" />{label}</span>; };
+const Switch = ({ checked, onChange, label }) => <label className="pm-switch" title={label}><input type="checkbox" checked={Boolean(checked)} onChange={onChange} aria-label={label} /><span className="pm-switch-track" aria-hidden="true" /><span className="pm-switch-label">Modelo</span></label>;
 
 export function AgentDashboardPage() {
   const { data } = useLoad("/agent/dashboard"); const { user } = useAuth();
@@ -43,7 +49,7 @@ export function WithdrawPage() {
 
 export function PlatformSettingsPage() {
   const { data, load } = useLoad("/superadmin/platform-settings"); const [notice, setNotice] = useState({}); if (!data) return <Empty text="Carregando..." />; const submit = async (e) => { e.preventDefault(); try { await api.post("/superadmin/platform-settings", Object.fromEntries(new FormData(e.currentTarget))); setNotice({ message: "Valores atualizados com sucesso." }); load(); } catch (err) { setNotice({ error: err.response?.data?.detail }); } };
-  return <><AdminHeader title="Plano & Valores" /><Notice notice={notice} /><div className="card"><div className="card-header"><h3>Configurações do Plano</h3></div><div className="card-body"><form onSubmit={submit}><div className="grid-2">{[["adesao_cents", "Valor Adesão (centavos)"], ["mensalidade_cents", "Mensalidade (centavos)"], ["video_price_cents", "Valor por Vídeo (centavos)"], ["min_withdrawal_cents", "Saque Mínimo (centavos)"], ["override_pct_adesao", "Override Gerente - Adesão (%)"], ["override_pct_mensalidade", "Override Gerente - Mensalidade (%)"]].map(([name, label]) => <FormField key={name} label={label} name={name} type="number" step={name.startsWith("override") ? "0.01" : undefined} defaultValue={data[name]} />)}</div><button className="btn btn-primary">Salvar</button></form></div></div></>;
+  return <><AdminHeader title="Plano & Valores" /><Notice notice={notice} /><div className="card"><div className="card-header"><h3>Configurações do Plano</h3></div><div className="card-body"><form onSubmit={submit}><div className="grid-2">{[["mensalidade_cents", "Mensalidade (centavos)"], ["video_price_cents", "Valor por Vídeo (centavos)"], ["min_withdrawal_cents", "Saque Mínimo (centavos)"], ["override_pct_adesao", "Override Gerente - Venda (%)"], ["override_pct_mensalidade", "Override Gerente - Mensalidade (%)"]].map(([name, label]) => <FormField key={name} label={label} name={name} type="number" step={name.startsWith("override") ? "0.01" : undefined} defaultValue={data[name]} />)}</div><button className="btn btn-primary">Salvar</button></form></div></div></>;
 }
 
 export function MaterialsPage() {
@@ -57,11 +63,66 @@ export function MapPage() {
   return <><AdminHeader title="Mapa" /><Notice notice={notice} /><div className="grid-2"><div className="card"><div className="card-header"><h3>Restaurantes vinculados</h3></div><div className="card-body">{data.restaurants.map((r) => <label key={r.id} style={{ display: "flex", gap: 10, padding: 10 }}><input type="checkbox" checked={selected.includes(r.id)} onChange={() => setSelected(selected.includes(r.id) ? selected.filter((id) => id !== r.id) : [...selected, r.id])} /><span><strong>{r.name}</strong><br /><small>{r.address || "Sem endereço"}</small></span></label>)}<button className="btn btn-primary" disabled={!selected.length} onClick={save}>Salvar rota</button></div></div><div className="route-map-placeholder"><div><i className="fas fa-map-location-dot" /> Selecione estabelecimentos para montar a rota.</div></div></div><div className="card" style={{ marginTop: 27 }}><div className="card-header"><h3>Rotas salvas</h3></div><div className="card-body"><Table headers={["Título", "Paradas", "Status", "Google Maps", "Ações"]} rows={data.routes} render={(r) => <tr key={r.id}><td>{r.title}</td><td>{r.stops?.length || 0}</td><td><Badge tone={r.status === "completed" ? "green" : "orange"}>{r.status}</Badge></td><td><a className="btn btn-sm btn-outline" href={mapsUrl(r)} target="_blank" rel="noreferrer">Abrir</a></td><td><div className="action-row"><button className="btn btn-sm btn-success" onClick={() => api.patch(`/agent/routes/${r.id}`, { action: "complete", rating: 5 }).then(load)}>Concluir</button><button className="btn btn-sm btn-danger" onClick={() => api.patch(`/agent/routes/${r.id}`, { action: "delete" }).then(load)}>Excluir</button></div></td></tr>} /></div></div></>;
 }
 
-export function SuperDashboardPage() { const { data } = useLoad("/superadmin/dashboard"); return <><AdminHeader title="Dashboard" />{data && <div className="metrics">{[[data.restaurants, "Restaurantes"], [data.active_restaurants, "Restaurantes ativos"], [data.agents, "Agentes"], [data.pending_requests, "Solicitações pendentes"], [data.pending_withdrawals, "Saques pendentes"]].map(([v, l]) => <div className="metric" key={l}><h2>{v}</h2><p>{l}</p></div>)}</div>}</>; }
+export function SuperDashboardPage() {
+  const { data } = useLoad("/superadmin/dashboard");
+  if (!data) return <><AdminHeader title="Dashboard" /><Empty text="Carregando..." /></>;
+  const months = data.signups_by_month || [];
+  const lastMonth = months[months.length - 1]?.value || 0;
+  const prevMonth = months[months.length - 2]?.value || 0;
+  const trend = prevMonth ? Math.round(((lastMonth - prevMonth) / prevMonth) * 100) : lastMonth > 0 ? 100 : 0;
+  const activePct = data.restaurants ? Math.round((data.active_restaurants / data.restaurants) * 100) : 0;
+  const segments = [
+    { label: "Ativos", value: data.active_restaurants },
+    { label: "Pendentes", value: data.pending_restaurants },
+    { label: "Suspensos", value: data.suspended_restaurants },
+  ];
+  const segTotal = Math.max(1, data.restaurants);
+  return <>
+    <AdminHeader title="Dashboard" />
+    <div className="metrics">
+      <div className="metric revenue">
+        <div className="metric-title">Restaurantes cadastrados</div>
+        <div className="metric-value">{data.restaurants}</div>
+        <div className="metric-foot"><span className="metric-trend">{trend >= 0 ? "▲" : "▼"} {Math.abs(trend)}%</span><span>vs. mês anterior</span></div>
+      </div>
+      <div className="metric">
+        <div className="metric-title">Agentes</div>
+        <div className="metric-value">{data.agents}</div>
+        <div className="metric-foot"><span>{data.pending_requests} solicitação(ões) de vídeo pendente(s)</span></div>
+      </div>
+      <div className="metric">
+        <div className="metric-title">Restaurantes por status</div>
+        <div className="metric-value">{data.restaurants}</div>
+        <div className="target-track">{segments.map((seg) => <span key={seg.label} className="target-seg" style={{ flex: Math.max(0.06, seg.value / segTotal) }} title={`${seg.label}: ${seg.value}`} />)}</div>
+        <div className="metric-legend">{segments.map((seg) => <span key={seg.label}><i className="dot" />{seg.label} ({seg.value})</span>)}</div>
+      </div>
+    </div>
+    <div className="dash-lower">
+      <div className="gauge-card">
+        <h3>Restaurantes ativos</h3>
+        <div className="subtle">Proporção sobre o total cadastrado</div>
+        <GaugeChart value={activePct} label={`${activePct}%`} sublabel={`${data.active_restaurants} de ${data.restaurants}`} />
+      </div>
+      <div className="chart-card">
+        <h3>Novos cadastros</h3>
+        <div className="subtle">Restaurantes cadastrados nos últimos 6 meses</div>
+        <BarChart data={months} formatValue={(v) => `${v} restaurante(s)`} />
+      </div>
+    </div>
+    <div className="card" style={{ marginTop: "var(--gap)" }}>
+      <div className="card-header"><h3>Financeiro & operação</h3></div>
+      <div className="card-body grid-2">
+        <div><strong style={{ fontSize: 20 }}>{data.pending_requests}</strong><p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 12 }}>Solicitações de vídeo pendentes</p></div>
+        <div><strong style={{ fontSize: 20 }}>{data.pending_withdrawals}</strong><p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 12 }}>Saques de agentes pendentes</p></div>
+      </div>
+    </div>
+  </>;
+}
 
 export function SuperRestaurantsPage() {
-  const { data, load } = useList("/superadmin/restaurants"); const [notice, setNotice] = useState({}); const send = async (body) => { try { await api.post("/superadmin/restaurants", body); setNotice({ message: "Restaurante atualizado." }); load(); } catch (err) { setNotice({ error: err.response?.data?.detail }); } }; const submit = (e) => { e.preventDefault(); send(Object.fromEntries(new FormData(e.currentTarget))); e.currentTarget.reset(); };
-  return <><AdminHeader title="Restaurantes" /><Notice notice={notice} /><div className="card" style={{ marginBottom: 27 }}><div className="card-header"><h3>Cadastrar Restaurante</h3></div><div className="card-body"><form onSubmit={submit}><div className="grid-3"><FormField label="Nome" name="name" required /><FormField label="E-mail" name="email" type="email" required /><FormField label="Senha" name="password" required /></div><button className="btn btn-primary">Cadastrar</button></form></div></div><div className="card"><div className="card-header"><h3>Todos os Restaurantes</h3><Badge tone="blue">{data.length}</Badge></div><div className="card-body"><Table headers={["Nome", "E-mail", "Status", "Vendedor", "Modelo", "Ações"]} rows={data} render={(r) => <tr key={r.id}><td><strong>{r.name}</strong><br /><small>/public/?r={r.slug}</small></td><td>{r.email}</td><td><Badge tone={r.status === "active" ? "green" : r.status === "pending" ? "orange" : "red"}>{r.status}</Badge></td><td>{r.seller_name}</td><td>{r.is_model ? <Badge tone="purple">MODELO</Badge> : "—"}</td><td><div className="action-row">{r.status === "pending" && <button className="btn btn-sm btn-success" onClick={() => send({ action: "activate", id: r.id })}>Ativar</button>}<button className="btn btn-sm btn-outline" onClick={() => send({ action: "toggle_model", id: r.id })}>{r.is_model ? "Remover modelo" : "Modelo"}</button><button className="btn btn-sm btn-outline" onClick={() => send({ action: "toggle", id: r.id })}>{r.status === "active" ? "Suspender" : "Ativar"}</button></div></td></tr>} /></div></div></>;
+  const { data, load } = useList("/superadmin/restaurants"); const [notice, setNotice] = useState({}); const send = async (body) => { try { await api.post("/superadmin/restaurants", body); setNotice({ message: body.action === "delete" ? "Restaurante excluído." : "Restaurante atualizado." }); load(); } catch (err) { setNotice({ error: err.response?.data?.detail }); } }; const submit = (e) => { e.preventDefault(); send(Object.fromEntries(new FormData(e.currentTarget))); e.currentTarget.reset(); };
+  const remove = (r) => { if (window.confirm(`Excluir "${r.name}" definitivamente?\n\nSerão apagados o cadastro, o cardápio, as mídias, as avaliações, as páginas de bio e as métricas deste restaurante. Comissões e pagamentos são mantidos para auditoria.\n\nEsta ação não pode ser desfeita.`)) send({ action: "delete", id: r.id }); };
+  return <><AdminHeader title="Restaurantes" /><Notice notice={notice} /><div className="card" style={{ marginBottom: 27 }}><div className="card-header"><h3>Cadastrar Restaurante</h3></div><div className="card-body"><form onSubmit={submit}><div className="grid-3"><FormField label="Nome" name="name" required /><FormField label="E-mail" name="email" type="email" required /><FormField label="Senha" name="password" required /></div><button className="btn btn-primary">Cadastrar</button></form></div></div><div className="card"><div className="card-header"><h3>Todos os Restaurantes</h3><Badge tone="blue">{data.length}</Badge></div><div className="card-body"><Table headers={["Nome", "E-mail", "Status", "Vendedor", "Modelo", "Ações"]} rows={data} render={(r) => <tr key={r.id}><td><strong>{r.name}</strong><br /><small>/{r.slug}</small></td><td>{r.email}</td><td><StatusBadge status={r.status} /></td><td>{r.seller_name}</td><td><Switch checked={r.is_model} onChange={() => send({ action: "toggle_model", id: r.id })} label={`${r.is_model ? "Desativar" : "Ativar"} restaurante modelo — ${r.name}`} /></td><td><div className="action-row"><IconBtn as={Link} to={`/superadmin/restaurante?id=${r.id}`} tone="primary" icon="fa-eye" label={`Ver detalhes de ${r.name}`} /><IconBtn tone="outline" icon={r.status === "active" ? "fa-ban" : "fa-play"} label={r.status === "active" ? `Suspender ${r.name}` : `Reativar ${r.name}`} onClick={() => send({ action: "toggle", id: r.id })} /><IconBtn tone="danger" icon="fa-trash" label={`Excluir ${r.name}`} data-testid={`delete-restaurant-${r.id}`} onClick={() => remove(r)} /></div></td></tr>} /></div></div></>;
 }
 
 export function SuperAgentsPage() {
@@ -101,6 +162,10 @@ export function VideoRequestsAdminPage() {
 }
 
 export function VideoRequestDetailPage() {
-  const [params] = useSearchParams(); const id = Number(params.get("id") || 0); const { data, load } = useLoad(`/superadmin/video-requests/${id}`); const [notice, setNotice] = useState({}); if (!data) return <Empty text="Carregando solicitação..." />; const submit = async (e, itemId = 0) => { e.preventDefault(); const fd = new FormData(e.currentTarget); fd.set("target_item", itemId); try { await api.post(`/superadmin/video-requests/${id}/respond`, fd); setNotice({ message: "Vídeo enviado ao restaurante." }); load(); } catch (err) { setNotice({ error: err.response?.data?.detail }); } };
-  return <><AdminHeader title={`Solicitação #${id}`} /><Notice notice={notice} /><Link className="btn btn-sm btn-outline" to="/superadmin/solicitacoes">Voltar</Link><div className="card" style={{ marginTop: 20 }}><div className="card-header"><h3>{data.request.title}</h3><Badge tone={data.request.status === "done" ? "green" : "orange"}>{data.request.status}</Badge></div><div className="card-body"><p>{data.request.notes}</p>{data.items.map((item) => <div className="item-card" key={item.id} style={{ padding: 14, borderBottom: "1px solid rgba(255,255,255,.08)" }}>{item.image_file && <img src={mediaUrl(item.image_file)} width="80" height="80" style={{ objectFit: "cover", borderRadius: 10 }} alt="" />}<div className="item-info"><strong>{item.product?.title || `Produto #${item.product_id}`}</strong>{item.video_file && <video src={mediaUrl(item.video_file)} controls style={{ width: "100%", maxWidth: 320, display: "block", marginTop: 8 }} />}<form onSubmit={(e) => submit(e, item.id)}><FormField label="Vídeo deste produto" name="video_file" type="file" required /><button className="btn btn-primary">{item.video_file ? "Atualizar" : "Enviar"}</button></form></div></div>)}<form onSubmit={(e) => submit(e, 0)}><FormField label="Mensagem geral"><textarea className="form-control" name="response_notes" defaultValue={data.request.response_notes} /></FormField><button className="btn btn-outline">Salvar mensagem / marcar concluído</button></form></div></div></>;
+  const [params] = useSearchParams(); const id = Number(params.get("id") || 0); const { data, load } = useLoad(`/superadmin/video-requests/${id}`); const [notice, setNotice] = useState({});
+  const download = async (url, filename) => { try { const response = await api.get(url, { responseType: "blob" }); const href = URL.createObjectURL(response.data); const link = document.createElement("a"); link.href = href; const extensions = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif" }; link.download = filename.includes(".") ? filename : `${filename}${extensions[response.data.type] || ".jpg"}`; document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(href), 1000); } catch (err) { setNotice({ error: "Não foi possível baixar a imagem." }); } };
+  if (!data) return <Empty text="Carregando solicitação..." />;
+  const submit = async (e, itemId = 0) => { e.preventDefault(); const fd = new FormData(e.currentTarget); fd.set("target_item", itemId); try { await api.post(`/superadmin/video-requests/${id}/respond`, fd); setNotice({ message: "Vídeo enviado ao restaurante." }); load(); } catch (err) { setNotice({ error: err.response?.data?.detail }); } };
+  const images = data.items.filter((item) => item.image_file);
+  return <><AdminHeader title={`Solicitação #${id}`} /><Notice notice={notice} /><div className="request-page-actions"><Link className="btn btn-sm btn-outline" to="/superadmin/solicitacoes"><i className="fas fa-arrow-left" />Voltar</Link>{images.length > 0 && <button className="btn btn-sm btn-primary" type="button" onClick={() => download(`/superadmin/video-requests/${id}/images/download`, `solicitacao-${id}-imagens.zip`)}><i className="fas fa-download" />Baixar todas as imagens ({images.length})</button>}</div><div className="card request-detail-card"><div className="card-header"><h3>{data.request.title}</h3><Badge tone={data.request.status === "done" ? "green" : "orange"}>{data.request.status}</Badge></div><div className="card-body">{data.request.notes && <p className="request-notes">{data.request.notes}</p>}<div className="request-items">{data.items.map((item) => { const title = item.product?.title || `Produto #${item.product_id}`; return <article className="request-item" key={item.id}><div className="request-item__media">{item.image_file ? <><img src={mediaUrl(item.image_file)} alt={title} /><button className="btn btn-sm btn-outline" type="button" onClick={() => download(`/superadmin/video-requests/${id}/images/${item.id}/download`, title)}><i className="fas fa-download" />Baixar imagem</button></> : <div className="request-item__placeholder"><i className="fas fa-image" />Sem imagem</div>}</div><div className="request-item__content"><h4>{title}</h4>{item.video_file && <video src={mediaUrl(item.video_file)} controls />}<form onSubmit={(e) => submit(e, item.id)}><FormField label="Vídeo deste produto" name="video_file" type="file" required /><button className="btn btn-primary">{item.video_file ? "Atualizar vídeo" : "Enviar vídeo"}</button></form></div></article>; })}</div><form className="request-response-form" onSubmit={(e) => submit(e, 0)}><FormField label="Mensagem geral"><textarea className="form-control" name="response_notes" defaultValue={data.request.response_notes} /></FormField><button className="btn btn-outline">Salvar mensagem / marcar concluído</button></form></div></div></>;
 }

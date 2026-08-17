@@ -313,7 +313,7 @@
 
       function blockStyle(element) {
         const style = element.style || {};
-        const shadows = { none: 'none', soft: '0 8px 24px rgba(17,24,39,.07)', strong: '0 14px 34px rgba(17,24,39,.17)' };
+        const shadows = { none: 'none', soft: '0 8px 24px #11182712', strong: '0 14px 34px rgba(17,24,39,.17)' };
         return [
           style.background !== '' ? `--block-bg:${style.background || 'transparent'}` : '',
           style.borderColor !== '' ? `--block-border:${style.borderColor || 'transparent'}` : '',
@@ -392,25 +392,35 @@
           case 'heading': return `<section ${baseAttr}><div class="bio-heading">${tx(element,'text',data.text,'h2')}${data.subtitle ? tx(element,'subtitle',data.subtitle,'p') : ''}</div></section>`;
           case 'text': return `<section ${baseAttr}><div class="bio-text">${tx(element,'text',nl2br(data.text),'span',{html:true})}</div></section>`;
           case 'menu': {
-            const items = parsePipes(data.items, 4).map(([icon,title,subtitle,url], index) => `<a class="menu-category" ${linkAttrs(url)}><span>${esc(icon || '🍽️')}</span><span>${tx(element,`items.${index}.1`,title,'strong')}${tx(element,`items.${index}.2`,subtitle,'small')}</span></a>`).join('');
+            const menuStyle = data.menuButtonStyle || 'filled';
+            const items = parsePipes(data.items, 4).map(([icon,title,subtitle,url], index) => `<a class="menu-category button-${menuStyle}" ${linkAttrs(url)}><span>${esc(icon || '🍽️')}</span><span>${tx(element,`items.${index}.1`,title,'strong')}${tx(element,`items.${index}.2`,subtitle,'small')}</span></a>`).join('');
             return `<section ${baseAttr}><div class="bio-block"><div class="bio-heading" style="padding:0 0 11px">${tx(element,'title',data.title,'h2')}${tx(element,'subtitle',data.subtitle,'p')}</div><div class="menu-categories">${items}</div></div></section>`;
           }
           case 'product': return `<section ${baseAttr}><article class="bio-block product-card"><div class="product-image" style="background-image:url('${escAttr(data.image)}')">${data.badge ? tx(element,'badge',data.badge,'span',{className:'product-badge'}) : ''}</div><div class="product-content"><div class="product-title-row">${tx(element,'title',data.title,'h3')}<div class="price">${data.oldPrice ? tx(element,'oldPrice',data.oldPrice,'span',{className:'old-price'}) : ''}${tx(element,'price',data.price,'span')}</div></div>${tx(element,'description',data.description,'p')}<a class="small-cta" ${linkAttrs(data.url)}>${tx(element,'buttonLabel',data.buttonLabel,'span')}</a></div></article></section>`;
-          case 'promo': return `<section ${baseAttr}><article class="bio-block promo-card">${tx(element,'eyebrow',data.eyebrow,'div',{className:'promo-eyebrow'})}${tx(element,'title',data.title,'h3')}${tx(element,'text',data.text,'p')}<div class="coupon-row">${tx(element,'code',data.code,'span',{className:'coupon-code'})}<a ${linkAttrs(data.url)}>${tx(element,'linkLabel',`${data.linkLabel} →`,'span')}</a></div></article></section>`;
+          case 'promo': {
+            const promoIcon = data.promoIcon ? `<span class="link-icon">${esc(data.promoIcon)}</span> ` : '';
+            return `<section ${baseAttr}><article class="bio-block promo-card">${tx(element,'eyebrow',data.eyebrow,'div',{className:'promo-eyebrow'})}${tx(element,'title',data.title,'h3')}${tx(element,'text',data.text,'p')}<div class="coupon-row">${tx(element,'code',data.code,'span',{className:'coupon-code'})}<a ${linkAttrs(data.url)}>${promoIcon}${tx(element,'linkLabel',`${data.linkLabel} →`,'span')}</a></div></article></section>`;
+          }
           case 'whatsapp': {
             const url = `https://wa.me/${String(data.phone || '').replace(/\D/g,'')}?text=${encodeURIComponent(data.message || 'Olá! Gostaria de fazer um pedido.')}`;
             const icon = data.icon ? `<span class="link-icon">${esc(data.icon)}</span>` : '';
             const pos = ['left','center','right'].includes(data.iconPosition) ? data.iconPosition : 'left';
             return `<a ${linkedAttr} class="bio-component bio-block bio-link ${buttonStyle} icon-${pos}${data.icon ? '' : ' no-icon'}${classSuffix}" ${linkAttrs(url)}>${pos === 'left' ? icon : ''}<span class="link-copy">${tx(element,'label',data.label,'strong')}${data.subtitle ? tx(element,'subtitle',data.subtitle,'small') : ''}</span>${pos === 'center' ? icon : ''}${pos === 'right' ? icon : ''}<span class="link-arrow">›</span></a>`;
           }
-          case 'delivery': return `<section ${baseAttr}><div class="bio-block"><div class="bio-heading" style="padding:0 0 10px">${tx(element,'title',data.title,'h2')}${tx(element,'subtitle',data.subtitle,'p')}</div><div class="delivery-grid"><a class="delivery-item" ${linkAttrs(data.ifood)}><span>🟥</span><strong>iFood</strong></a><a class="delivery-item" ${linkAttrs(data.rappi)}><span>🟧</span><strong>Rappi</strong></a><a class="delivery-item" ${linkAttrs(data.own)}><span>💬</span><strong>Pedido direto</strong></a><a class="delivery-item" ${linkAttrs(data.own)}><span>🛍️</span><strong>Retirada</strong></a></div></div></section>`;
-          case 'reservation': return `<section ${baseAttr}><div class="bio-block"><div class="info-row"><div class="info-row-icon">📅</div><div style="flex:1">${tx(element,'title',data.title,'strong')}${tx(element,'text',data.text,'span')}</div></div><a class="small-cta" style="margin-top:12px" ${linkAttrs(data.url)}>${tx(element,'label',data.label,'span')}</a></div></section>`;
+          case 'delivery': {
+            return `<section ${baseAttr}><div class="bio-block"><div class="bio-heading" style="padding:0 0 10px">${tx(element,'title',data.title,'h2')}${tx(element,'subtitle',data.subtitle,'p')}</div><div class="delivery-grid"><a class="delivery-item" style="background:${escAttr(data.ifoodBg || 'rgba(255,255,255,.7)')}" ${linkAttrs(data.ifood)}><span>${esc(data.ifoodIcon || '🟥')}</span><strong>${esc(data.ifoodLabel || 'iFood')}</strong></a><a class="delivery-item" style="background:${escAttr(data.rappiBg || 'rgba(255,255,255,.7)')}" ${linkAttrs(data.rappi)}><span>${esc(data.rappiIcon || '🟧')}</span><strong>${esc(data.rappiLabel || 'Rappi')}</strong></a><a class="delivery-item" style="background:${escAttr(data.ownBg || 'rgba(255,255,255,.7)')}" ${linkAttrs(data.own)}><span>${esc(data.ownIcon || '💬')}</span><strong>${esc(data.ownLabel || 'Pedido direto')}</strong></a><a class="delivery-item" style="background:${escAttr(data.pickupBg || 'rgba(255,255,255,.7)')}" ${linkAttrs(data.pickup)}><span>${esc(data.pickupIcon || '🛍️')}</span><strong>${esc(data.pickupLabel || 'Retirada')}</strong></a></div></div></section>`;
+          }
+          case 'reservation': {
+            const icon = data.reservationIcon ? `<span class="link-icon">${esc(data.reservationIcon)}</span>` : '';
+            const pos = ['left','center','right'].includes(data.reservationIconPosition) ? data.reservationIconPosition : 'left';
+            return `<section ${baseAttr}><div class="bio-block"><div class="reservation-panel" style="background:${escAttr(data.reservationPanelBackground || 'rgba(255,255,255,.92)')};padding:14px;border-radius:14px;"><div class="info-row"><div class="info-row-icon" style="background:${escAttr(data.reservationIconBackground || 'color-mix(in srgb,var(--page-primary,#ff5b22) 12%,transparent)')}">${data.reservationIcon || '📅'}</div><div style="flex:1">${tx(element,'title',data.title,'strong')}${tx(element,'text',data.text,'span')}</div></div></div><a class="small-cta icon-${pos}${data.reservationIcon ? '' : ' no-icon'}" style="margin-top:12px;background:${escAttr(data.reservationButtonBackground || 'var(--page-primary,#ff5b22)')}" ${linkAttrs(data.url)}>${pos === 'left' ? icon : ''}<span>${tx(element,'label',data.label,'span')}</span>${pos === 'right' ? icon : ''}</a></div></section>`;
+          }
           case 'gallery': {
             const images = parseLines(data.images, 12).map((src,index) => `<img src="${escAttr(src)}" alt="Foto ${index + 1} de ${escAttr(state.projectName)}" loading="lazy">`).join('');
             return `<section ${baseAttr}><div class="bio-heading">${tx(element,'title',data.title,'h2')}</div><div class="gallery" style="--gallery-cols:${Number(data.columns) || 3}">${images}</div></section>`;
           }
-          case 'video': return `<a id="${escAttr(anchor)}" class="bio-component bio-block video-card${classSuffix}" style="${escAttr(style)};background-image:url('${escAttr(data.cover)}')" ${linkAttrs(data.url)}><span class="video-play">▶</span><span class="video-caption">${tx(element,'title',data.title,'strong')}${tx(element,'subtitle',data.subtitle,'small')}</span></a>`;
-          case 'location': return `<section ${baseAttr}><div class="bio-block info-list"><div class="info-row"><div class="info-row-icon">📍</div><div>${tx(element,'title',data.title,'strong')}<a ${linkAttrs(data.url)}>${tx(element,'address',data.address,'span')}</a>${data.reference ? tx(element,'reference',data.reference,'span') : ''}</div></div></div></section>`;
+          case 'video': return `<a id="${escAttr(anchor)}" class="bio-component bio-block video-card${classSuffix}" style="${escAttr(style)};background-image:url('${escAttr(data.cover)}')" ${linkAttrs(data.url)}><span class="video-play">${data.videoIcon || '▶'}</span><span class="video-caption">${tx(element,'title',data.title,'strong')}${tx(element,'subtitle',data.subtitle,'small')}</span></a>`;
+          case 'location': return `<section ${baseAttr}><div class="bio-block info-list" style="background:${escAttr(data.locationPanelBackground || 'rgba(255,255,255,.92)')}"><div class="info-row"><div class="info-row-icon" style="background:${escAttr(data.locationIconBackground || 'color-mix(in srgb,var(--page-primary,#ff5b22) 12%,transparent)')}">${data.locationIcon || '📍'}</div><div>${tx(element,'title',data.title,'strong')}<a ${linkAttrs(data.url)}>${tx(element,'address',data.address,'span')}</a>${data.reference ? tx(element,'reference',data.reference,'span') : ''}</div></div></div></section>`;
           case 'hours': {
             const rows = parsePipes(data.schedule, 2).map(([day,time], index) => `<div class="hours-row">${tx(element,`schedule.${index}.0`,day,'span')}${tx(element,`schedule.${index}.1`,time,'span')}</div>`).join('');
             return `<section ${baseAttr}><div class="bio-block"><div class="info-row" style="margin-bottom:11px"><div class="info-row-icon">🕒</div><div>${tx(element,'title',data.title,'strong')}</div></div><div class="hours-list">${rows}</div></div></section>`;
@@ -425,8 +435,11 @@
             const methods = parseLines(data.methods, 12).map((method,index) => tx(element,`methods.${index}`,method,'span',{className:'payment-pill'})).join('');
             return `<section ${baseAttr}><div class="bio-block"><div class="info-row"><div class="info-row-icon">💳</div><div>${tx(element,'title',data.title,'strong')}</div></div><div class="payment-icons">${methods}</div></div></section>`;
           }
-          case 'banner': return `<a id="${escAttr(anchor)}" class="bio-component bio-block banner-card${classSuffix}" style="${escAttr(style)};background-image:url('${escAttr(data.image)}')" ${linkAttrs(data.url)}><span class="banner-card__copy">${tx(element,'title',data.title,'strong')}${tx(element,'subtitle',data.subtitle,'small')}</span></a>`;
-          case 'event': return `<section ${baseAttr}><article class="bio-block event-card"><div class="event-cover" style="background-image:url('${escAttr(data.image)}')"></div><div class="event-content">${tx(element,'date',data.date,'span',{className:'event-date'})}${tx(element,'title',data.title,'h3')}${tx(element,'description',data.description,'p')}<a class="small-cta" ${linkAttrs(data.url)}>${tx(element,'buttonLabel',data.buttonLabel,'span')}</a></div></article></section>`;
+          case 'banner': {
+            const bannerIcon = data.bannerIcon ? `<span class="banner-icon">${esc(data.bannerIcon)}</span>` : '';
+            return `<a id="${escAttr(anchor)}" class="bio-component bio-block banner-card${classSuffix}" style="${escAttr(style)};background-image:url('${escAttr(data.image)}')" ${linkAttrs(data.url)}>${bannerIcon}<span class="banner-card__copy">${tx(element,'title',data.title,'strong')}${tx(element,'subtitle',data.subtitle,'small')}</span></a>`;
+          }
+          case 'event': return `<section ${baseAttr}><article class="bio-block event-card"><div class="event-cover" style="background-image:url('${escAttr(data.image)}')"></div><div class="event-content">${tx(element,'date',data.date,'span',{className:'event-date'})}${tx(element,'title',data.title,'h3')}${tx(element,'description',data.description,'p')}<a class="small-cta" ${linkAttrs(data.url)}><span class="event-icon">${data.eventIcon || '🎉'}</span>${tx(element,'buttonLabel',data.buttonLabel,'span')}</a></div></article></section>`;
           case 'file': return `<a id="${escAttr(anchor)}" class="bio-component bio-block file-card${classSuffix}" style="${escAttr(style)}" ${linkAttrs(data.fileUrl)}><span class="file-card__icon">📄</span><span class="file-card__copy">${tx(element,'title',data.title,'strong')}${tx(element,'description',data.description || data.fileName,'small')}</span><span class="link-arrow">↓</span></a>`;
           case 'divider': return `<section ${baseAttr}><div class="bio-divider"></div></section>`;
           case 'spacer': return `<section ${baseAttr}><div class="bio-spacer" style="--spacer-height:${Number(data.height) || 28}px"></div></section>`;
@@ -996,22 +1009,26 @@
           case 'linksGrid': return listEditor('links', parsePipes(data.items,3));
           case 'heading': return textField('Título','text',data.text) + textField('Subtítulo','subtitle',data.subtitle);
           case 'text': return textareaField('Texto','text',data.text);
-          case 'menu': return textField('Título','title',data.title) + textField('Subtítulo','subtitle',data.subtitle) + listEditor('menu',parsePipes(data.items,4));
+          case 'menu': return textField('Título','title',data.title) + textField('Subtítulo','subtitle',data.subtitle) + choiceGrid('Estilo dos botões','menuButtonStyle',data.menuButtonStyle || 'filled',[{value:'filled',label:'Preenchido',icon:'bi bi-square-fill'},{value:'outline',label:'Contorno',icon:'bi bi-square'},{value:'soft',label:'Suave',icon:'bi bi-square-half'}],'data') + listEditor('menu',parsePipes(data.items,4));
           case 'product': return assetField('Imagem do produto','image',data.image,'image') + textField('Nome do produto','title',data.title) + textareaField('Descrição','description',data.description) + textField('Preço atual','price',data.price) + textField('Preço anterior','oldPrice',data.oldPrice) + textField('Selo','badge',data.badge) + textField('Texto do botão','buttonLabel',data.buttonLabel) + textField('Link do pedido','url',data.url,{ type:'url' });
-          case 'promo': return textField('Chamada superior','eyebrow',data.eyebrow) + textField('Título da promoção','title',data.title) + textareaField('Descrição','text',data.text) + textField('Código do cupom','code',data.code) + textField('Texto do link','linkLabel',data.linkLabel) + textField('Link','url',data.url,{ type:'url' });
+          case 'promo': return textField('Chamada superior','eyebrow',data.eyebrow) + textField('Título da promoção','title',data.title) + textareaField('Descrição','text',data.text) + textField('Código do cupom','code',data.code) + textField('Texto do link','linkLabel',data.linkLabel) + textField('Link','url',data.url,{ type:'url' }) + iconPicker('promoIcon',data.promoIcon || '') + colorPicker('Fundo do link','promoButtonBackground',data.promoButtonBackground,'data','#ffffff');
           case 'whatsapp': return textField('Texto principal','label',data.label) + textField('Descrição','subtitle',data.subtitle) + iconPicker('icon',data.icon) + (data.icon ? segmentedControl('Posição do ícone','iconPosition',data.iconPosition || 'left',[{value:'left',label:'Esquerda',icon:'bi bi-arrow-left'},{value:'center',label:'Centro',icon:'bi bi-arrows-collapse-vertical'},{value:'right',label:'Direita',icon:'bi bi-arrow-right'}],'data') : '') + textField('Número com país e DDD','phone',data.phone,{ type:'tel', placeholder:'5585999999999' }) + textareaField('Mensagem automática','message',data.message,{ styleable:false });
-          case 'delivery': return textField('Título','title',data.title) + textField('Subtítulo','subtitle',data.subtitle) + textField('Link do iFood','ifood',data.ifood,{ type:'url' }) + textField('Link da Rappi','rappi',data.rappi,{ type:'url' }) + textField('Pedido direto ou WhatsApp','own',data.own,{ type:'url' });
-          case 'reservation': return textField('Título','title',data.title) + textField('Descrição','text',data.text) + textField('Texto do botão','label',data.label) + textField('Link da reserva','url',data.url,{ type:'url' });
+          case 'delivery': return textField('Título','title',data.title) + textField('Subtítulo','subtitle',data.subtitle)
+            + textField('Botão iFood','ifoodLabel',data.ifoodLabel || 'iFood') + iconPicker('ifoodIcon',data.ifoodIcon || '🟥') + colorPicker('Fundo iFood','ifoodBg',data.ifoodBg,'data','#ffffff') + textField('Link do iFood','ifood',data.ifood,{ type:'url' })
+            + textField('Botão Rappi','rappiLabel',data.rappiLabel || 'Rappi') + iconPicker('rappiIcon',data.rappiIcon || '🟧') + colorPicker('Fundo Rappi','rappiBg',data.rappiBg,'data','#ffffff') + textField('Link da Rappi','rappi',data.rappi,{ type:'url' })
+            + textField('Botão Pedido direto','ownLabel',data.ownLabel || 'Pedido direto') + iconPicker('ownIcon',data.ownIcon || '💬') + colorPicker('Fundo Pedido direto','ownBg',data.ownBg,'data','#ffffff') + textField('Link pedido direto','own',data.own,{ type:'url' })
+            + textField('Botão Retirada','pickupLabel',data.pickupLabel || 'Retirada') + iconPicker('pickupIcon',data.pickupIcon || '🛍️') + colorPicker('Fundo Retirada','pickupBg',data.pickupBg,'data','#ffffff') + textField('Link de retirada','pickup',data.pickup,{ type:'url' });
+          case 'reservation': return textField('Título','title',data.title) + textField('Descrição','text',data.text) + textField('Texto do botão','label',data.label) + textField('Link da reserva','url',data.url,{ type:'url' }) + iconPicker('reservationIcon',data.reservationIcon || '📅') + (data.reservationIcon ? segmentedControl('Posição do ícone','reservationIconPosition',data.reservationIconPosition || 'left',[{value:'left',label:'Esquerda',icon:'bi bi-arrow-left'},{value:'center',label:'Centro',icon:'bi bi-arrows-collapse-vertical'},{value:'right',label:'Direita',icon:'bi bi-arrow-right'}],'data') : '') + colorPicker('Fundo do painel','reservationPanelBackground',data.reservationPanelBackground,'data','#f5f5f8') + colorPicker('Fundo do botão','reservationButtonBackground',data.reservationButtonBackground,'data','#ff5b22');
           case 'gallery': return galleryEditor(data);
-          case 'video': return assetField('Imagem de capa','cover',data.cover,'image') + textField('Título','title',data.title) + textField('Subtítulo','subtitle',data.subtitle) + textField('Link do vídeo ou Reel','url',data.url,{ type:'url' });
-          case 'location': return textField('Título','title',data.title) + textareaField('Endereço','address',data.address) + textField('Referência','reference',data.reference) + textField('Link do Google Maps','url',data.url,{ type:'url' });
+          case 'video': return assetField('Imagem de capa','cover',data.cover,'image') + textField('Título','title',data.title) + textField('Subtítulo','subtitle',data.subtitle) + textField('Link do vídeo ou Reel','url',data.url,{ type:'url' }) + iconPicker('videoIcon',data.videoIcon || '▶️');
+          case 'location': return textField('Título','title',data.title) + textareaField('Endereço','address',data.address) + textField('Referência','reference',data.reference) + textField('Link do Google Maps','url',data.url,{ type:'url' }) + iconPicker('locationIcon',data.locationIcon || '📍') + colorPicker('Fundo do painel','locationPanelBackground',data.locationPanelBackground,'data','#f5f5f8') + colorPicker('Fundo do ícone','locationIconBackground',data.locationIconBackground,'data','#ffffff');
           case 'hours': return textField('Título','title',data.title) + listEditor('hours',parsePipes(data.schedule,2));
           case 'social': return textField('Instagram','instagram',data.instagram,{ type:'url' }) + textField('TikTok','tiktok',data.tiktok,{ type:'url' }) + textField('Facebook','facebook',data.facebook,{ type:'url' }) + textField('YouTube','youtube',data.youtube,{ type:'url' }) + textField('Site','website',data.website,{ type:'url' });
           case 'testimonial': return textareaField('Depoimento','quote',data.quote) + textField('Nome do cliente','name',data.name) + textField('Identificação','role',data.role) + segmentedControl('Nota','rating',String(data.rating),[1,2,3,4,5].map(value => ({ value:String(value), label:`${value} estrelas`, short:String(value) })),'data');
           case 'wifi': return textField('Título','title',data.title) + textField('Texto de apoio','text',data.text) + textField('Nome da rede','network',data.network) + textField('Senha','password',data.password);
           case 'payments': return paymentEditor(data);
-          case 'banner': return assetField('Imagem do banner','image',data.image,'image') + textField('Título','title',data.title) + textField('Subtítulo','subtitle',data.subtitle) + textField('Link ao tocar','url',data.url,{ type:'url' });
-          case 'event': return assetField('Imagem do evento','image',data.image,'image') + textField('Data e horário','date',data.date) + textField('Título','title',data.title) + textareaField('Descrição','description',data.description) + textField('Texto do botão','buttonLabel',data.buttonLabel) + textField('Link de inscrição ou reserva','url',data.url,{ type:'url' });
+          case 'banner': return assetField('Imagem do banner','image',data.image,'image') + textField('Título','title',data.title) + textField('Subtítulo','subtitle',data.subtitle) + textField('Link ao tocar','url',data.url,{ type:'url' }) + iconPicker('bannerIcon',data.bannerIcon || '');
+          case 'event': return assetField('Imagem do evento','image',data.image,'image') + textField('Data e horário','date',data.date) + textField('Título','title',data.title) + textareaField('Descrição','description',data.description) + textField('Texto do botão','buttonLabel',data.buttonLabel) + textField('Link de inscrição ou reserva','url',data.url,{ type:'url' }) + iconPicker('eventIcon',data.eventIcon || '🎉');
           case 'file': return textField('Título do documento','title',data.title) + textField('Descrição','description',data.description) + assetField('Arquivo PDF','fileUrl',data.fileUrl,'pdf',data.fileName,'fileName');
           case 'spacer': return rangeControl('Altura do espaço','height',data.height,8,100,'px','data');
           case 'footer': return textField('Texto do rodapé','text',data.text) + switchField('Mostrar “Feito com PlayMenu Bio”','showPowered',data.showPowered);
@@ -1655,6 +1672,23 @@
         });
       }
 
+      /**
+       * Abre automaticamente a página que o restaurante já tem salva na conta:
+       * a publicada tem prioridade e, na falta dela, a editada mais recentemente.
+       * Sem isso o editor sempre abria com o modelo em branco.
+       */
+      function openLastProject() {
+        const projects = getProjects();
+        if (!projects.length) return;
+        const ordered = [...projects].sort((a, b) => (Number(Boolean(b.published)) - Number(Boolean(a.published))) || (new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)));
+        state = hydrateProject(ordered[0]);
+        history = [];
+        historyIndex = -1;
+        commit();
+        renderAll(false);
+        if (refs.phoneScreen) refs.phoneScreen.scrollTop = 0;
+      }
+
       async function init() {
         renderPresets();
         renderPalette();
@@ -1663,6 +1697,7 @@
         commit();
         renderAll();
         await refreshProjects();
+        openLastProject();
       }
 
       init();

@@ -18,6 +18,7 @@
 *{box-sizing:border-box}
 html,body{width:100%;min-height:100%;margin:0;font-family:"Inter",Arial,sans-serif;background:var(--bg);color:var(--text)}
 body{min-height:100vh;display:flex;overflow-x:hidden}
+.legacy-dashboard-page #root{width:100%;min-width:0}
 img,svg{max-width:100%;display:block}
 button,a{font:inherit}
 a{color:var(--orange);text-decoration:none}
@@ -151,3 +152,45 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 .qr-admin-template__body small{display:block;margin-bottom:14px;color:#aeb4c0;font-size:9px;line-height:1.5}
 .ai-settings-note{display:flex;align-items:flex-start;gap:10px;margin:4px 0 18px;padding:12px 14px;border:1px solid rgba(96,165,250,.25);border-radius:9px;background:rgba(96,165,250,.07);color:#bcd2f4;font-size:11px;line-height:1.5}
 .ai-settings-note i{margin-top:2px;color:#74aef6}
+
+
+/* Detalhes da solicitação de vídeo */
+.request-page-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.request-detail-card{margin-top:20px}
+.request-notes{margin:0 0 18px;padding:12px 14px;border-radius:8px;background:rgba(255,255,255,.035);color:var(--muted);font-size:12px;line-height:1.5}
+.request-items{display:grid;gap:0}
+.request-item{display:grid;grid-template-columns:180px minmax(0,1fr);gap:22px;padding:22px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.request-item:first-child{padding-top:0}
+.request-item__media{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.request-item__media img{width:180px;height:180px;border-radius:10px;object-fit:cover;background:var(--card-soft)}
+.request-item__media .btn{justify-content:center}
+.request-item__placeholder{height:180px;display:grid;place-content:center;gap:8px;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:10px;color:var(--muted);font-size:11px}
+.request-item__placeholder i{font-size:24px}
+.request-item__content{min-width:0}
+.request-item__content h4{margin:0 0 16px;color:#fff;font-size:16px}
+.request-item__content form{max-width:680px}
+.request-item__content video{display:block;width:100%;max-width:420px;margin:0 0 16px;border-radius:10px;background:#111}
+.request-response-form{margin-top:24px;padding-top:22px;border-top:1px solid rgba(255,255,255,.08)}
+@media(max-width:620px){
+  .request-page-actions .btn-primary{width:100%;justify-content:center}
+  .request-item{grid-template-columns:1fr;gap:16px}
+  .request-item__media{align-items:flex-start}
+  .request-item__media img{width:100%;height:auto;max-height:320px;aspect-ratio:1/1}
+  .request-item__media .btn{width:100%}
+}
+
+
+/* Detalhes e edição de restaurante no Super Admin */
+.restaurant-detail-hero{display:flex;align-items:center;justify-content:space-between;gap:24px;margin:20px 0;padding:22px;border:1px solid rgba(255,255,255,.06);border-radius:12px;background:linear-gradient(135deg,#222731,#292e39)}
+.restaurant-detail-hero h2{margin:10px 0 5px;font-size:22px}.restaurant-detail-hero p{margin:0;color:var(--muted);font-size:12px}
+.restaurant-detail-stats{display:flex;gap:10px;flex-wrap:wrap}.restaurant-detail-stats span{min-width:100px;padding:12px;border-radius:9px;background:rgba(255,255,255,.04);color:var(--muted);font-size:10px;text-align:center}.restaurant-detail-stats strong{display:block;margin-bottom:3px;color:#fff;font-size:20px}.restaurant-detail-stats .has-video strong{color:var(--green)}.restaurant-detail-stats .no-video strong{color:var(--orange)}
+.upload-queue-bar{position:sticky;top:12px;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px;padding:16px 18px;border:1px solid rgba(255,123,75,.35);border-radius:10px;background:rgba(34,39,49,.97);box-shadow:0 12px 34px rgba(0,0,0,.25)}.upload-queue-bar>div:first-child{display:grid;gap:4px}.upload-queue-bar span{color:var(--muted);font-size:11px}.upload-queue-bar .admin-progress{flex:1;max-width:420px}
+.admin-progress{height:8px;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.08)}.admin-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--orange),#ffb36f);transition:width .2s ease}
+.restaurant-product-filters{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}.restaurant-product-filters .form-control{max-width:300px}
+.restaurant-products-accordion{display:grid;gap:9px}.restaurant-product-item{overflow:hidden;border:1px solid rgba(255,255,255,.06);border-radius:10px;background:var(--card)}.restaurant-product-item.is-open{border-color:rgba(255,123,75,.28)}
+.restaurant-product-summary{width:100%;min-height:70px;display:flex;align-items:center;gap:13px;padding:10px 15px;border:0;background:transparent;color:#fff;text-align:left;cursor:pointer}.restaurant-product-summary>img,.product-thumb-empty{width:48px;height:48px;flex:0 0 48px;border-radius:8px;object-fit:cover;background:var(--card-soft)}.product-thumb-empty{display:grid;place-items:center;color:var(--muted)}.restaurant-product-summary__copy{min-width:0;display:grid;gap:4px;flex:1}.restaurant-product-summary__copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.restaurant-product-summary__copy small{color:var(--muted);font-size:10px}.product-video-markers{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.file-ready,.selected-file{display:inline-flex;align-items:center;gap:5px;color:var(--green);font-size:10px;font-weight:700}.restaurant-product-editor{border-top:1px solid rgba(255,255,255,.06)}
+.product-editor-tabs{display:flex;gap:3px;padding:9px 12px 0;overflow-x:auto;background:rgba(0,0,0,.08)}.product-editor-tabs button{padding:9px 13px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer}.product-editor-tabs button.is-active{border-color:var(--orange);color:#fff}
+.product-editor-panel{padding:18px}.media-panel{display:grid;grid-template-columns:minmax(180px,320px) minmax(0,1fr);gap:20px}.current-product-media{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start}.current-product-media img,.current-product-media video,.media-empty{width:100%;aspect-ratio:1/1;border-radius:9px;object-fit:cover;background:#171b22}.media-empty{display:grid;place-items:center;color:var(--muted);font-size:11px}.media-upload-fields{min-width:0}.model-only-note{display:flex;align-items:center;gap:8px;margin:8px 0 16px;padding:11px;border-radius:8px;background:rgba(255,180,50,.08);color:#ffcf78;font-size:11px}.admin-check{display:inline-flex;align-items:center;gap:8px;margin:6px 14px 8px 0;color:#fff;font-size:11px}.admin-check input{accent-color:var(--orange)}
+.variant-admin-editor{display:grid;gap:16px}.variant-admin-editor>section{padding:14px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(0,0,0,.08)}.variant-admin-editor>section>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.variant-admin-editor header div{display:grid;gap:3px}.variant-admin-editor header small{color:var(--muted);font-size:9px}.variant-admin-row{display:grid;grid-template-columns:minmax(160px,1fr) minmax(130px,220px) auto;gap:8px;margin-top:8px;align-items:center}.variant-admin-group{margin-top:10px;padding:10px;border-radius:8px;background:rgba(255,255,255,.025)}.variant-admin-row.is-option{padding-left:22px}
+.product-save-progress{margin:0 18px 14px;padding:12px;border-radius:8px;background:rgba(255,255,255,.035)}.product-save-progress>div:first-child{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;font-size:10px}.product-save-progress small{display:block;margin-top:6px;color:#ff8a80;font-size:10px}.product-save-progress.is-success strong{color:var(--green)}.product-save-progress.is-error strong{color:var(--red)}.product-editor-footer{display:flex;justify-content:flex-end;padding:0 18px 18px}
+@media(max-width:760px){.restaurant-detail-hero,.restaurant-product-filters,.upload-queue-bar{align-items:stretch;flex-direction:column}.restaurant-detail-stats{display:grid;grid-template-columns:repeat(3,1fr)}.restaurant-product-filters .form-control{max-width:none}.product-video-markers{justify-content:flex-start}.product-video-markers .file-ready{display:none}.media-panel{grid-template-columns:1fr}.variant-admin-row{grid-template-columns:1fr}.variant-admin-row.is-option{padding-left:0}.upload-queue-bar .admin-progress{max-width:none}.restaurant-product-summary{flex-wrap:wrap}.restaurant-product-summary__copy{min-width:calc(100% - 80px)}.product-video-markers{width:100%;padding-left:61px}}

@@ -8,7 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
 
 from app_core import clean_doc, db, next_id, public_media, utcnow
-from asaas_service import provision_payment
+from asaas_service import get_asaas_webhook_secret, provision_payment
 from file_service import stream_file
 from auth_service import require_roles
 
@@ -22,30 +22,100 @@ async def track(request, restaurant_id, event_type, product_id=None, link_type=N
     doc = {"id": await next_id("menu_analytics_events"), "restaurant_id": restaurant_id, "event_type": event_type, "product_id": product_id, "link_type": link_type, "link_label": link_label, "visitor_id": visitor_id(request), "ip_hash": hashlib.sha256(forwarded.encode()).hexdigest(), "user_agent": request.headers.get("user-agent"), "referrer": request.headers.get("referer"), "page_url": str(request.url), "created_at": utcnow()}
     await db.menu_analytics_events.insert_one(doc)
 
+def compute_promotion_price(product):
+    """Compute the effective price after promotion discount."""
+    promo = product.get("promotion") or {}
+    if not promo.get("active"):
+        return None
+    # Check date range
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if promo.get("start_date") and now < promo["start_date"]:
+        return None
+    if promo.get("end_date") and now > promo["end_date"]:
+        return None
+    original = int(product.get("price_cents", 0))
+    if promo.get("type") == "percentage":
+        discount = int(original * float(promo.get("value", 0)) / 100)
+        return max(0, original - discount)
+    elif promo.get("type") == "fixed":
+        discount = int(float(promo.get("value", 0)) * 100)
+        return max(0, original - discount)
+    return None
+
 @router.get("/api/public/menu")
-async def public_menu(request: Request, r: str = "", q: str = "", cat: int = 0, preview: bool = False):
+async def public_menu(request: Request, r: str = "", q: str = "", cat: int = 0, est: int = 0, preview: bool = False):
     restaurant = await db.restaurants.find_one({"slug": r, **({} if preview else {"is_active": 1})}, {"_id": 0}) if r else await db.restaurants.find_one({"is_active": 1}, {"_id": 0}, sort=[("id", 1)])
     if not restaurant: raise HTTPException(404, "Restaurante não encontrado.")
     rid = restaurant["id"]
     settings = await db.settings.find_one({"restaurant_id": rid}, {"_id": 0}) or {"store_name": restaurant["name"], "tagline": "", "badge_text": "Antenado"}
     query = {"restaurant_id": rid, "is_active": 1}
+    reservation_settings = await db.reservation_settings.find_one(
+        {"restaurant_id": rid}, {"_id": 0, "enabled": 1}
+    ) or {}
     if cat: query["category_id"] = cat
     if q: query["$or"] = [{"title": {"$regex": q, "$options": "i"}}, {"description": {"$regex": q, "$options": "i"}}]
     products = await db.products.find(query, {"_id": 0}).sort([("sort_order", 1), ("id", -1)]).to_list(10000)
     categories = await db.categories.find({"restaurant_id": rid, "is_active": 1}, {"_id": 0}).sort([("sort_order", 1), ("name", 1)]).to_list(1000)
     reviews = await db.restaurant_reviews.find({"restaurant_id": rid, "status": "approved"}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+    # Load establishments
+    establishments = await db.establishments.find({"restaurant_id": rid, "is_active": 1}, {"_id": 0}).sort([("sort_order", 1), ("name", 1)]).to_list(1000)
+
+    # Load establishment overrides if filtering by establishment
+    overrides_map = {}
+    if est:
+        overrides = await db.establishment_product_overrides.find(
+            {"establishment_id": est, "restaurant_id": rid}, {"_id": 0}
+        ).to_list(10000)
+        overrides_map = {o["product_id"]: o for o in overrides}
+
     for row in products:
-        for field in ["thumb_image", "video_file", "ar_model_file"]: row[field.replace("_file", "_url").replace("thumb_image", "image_url")] = public_media(row.get(field))
+        for field in ["thumb_image", "video_file", "ar_model_file"]:
+            row[field.replace("_file", "_url").replace("thumb_image", "image_url")] = public_media(row.get(field))
+        # Compute promotion price
+        promo_price = compute_promotion_price(row)
+        row["promotion_price_cents"] = promo_price
+        row["has_active_promotion"] = promo_price is not None
+        # Apply establishment overrides
+        if est and row["id"] in overrides_map:
+            override = overrides_map[row["id"]]
+            if override.get("available") is False:
+                row["is_active"] = 0
+            if override.get("price_cents_override") is not None:
+                row["price_cents"] = override["price_cents_override"]
+            if override.get("sizes_override"):
+                row["sizes"] = override["sizes_override"]
+
+    # Filter out unavailable products after overrides
+    if est:
+        products = [p for p in products if p.get("is_active")]
+
+    # Sort: promoted products first, then featured, then sort_order
+    products.sort(key=lambda p: (0 if p.get("has_active_promotion") else 1, 0 if p.get("is_featured") else 1, p.get("sort_order", 0), -p.get("id", 0)))
+
     if not preview: await track(request, rid, "menu_view")
     avg = sum(int(x.get("rating", 0)) for x in reviews) / len(reviews) if reviews else 0
-    return {"restaurant": restaurant, "settings": settings, "categories": categories, "products": products, "reviews": reviews, "reviews_summary": {"total": len(reviews), "avg_rating": avg}}
+    return {"restaurant": restaurant, "settings": settings, "categories": categories, "products": products, "reviews": reviews, "reviews_summary": {"total": len(reviews), "avg_rating": avg}, "establishments": establishments, "reservations": {"enabled": bool(reservation_settings.get("enabled"))}}
 
 @router.get("/api/public/product/{item_id}")
 async def product(item_id: int, request: Request):
     row = await db.products.find_one({"id": item_id, "is_active": 1}, {"_id": 0})
     if not row: raise HTTPException(404)
     await track(request, row["restaurant_id"], "product_view", item_id)
-    return {**row, "price": f'R$ {int(row.get("price_cents",0))/100:.2f}'.replace(".", ","), "image_url": public_media(row.get("thumb_image")), "video_url": public_media(row.get("video_file")), "ar_model_url": public_media(row.get("ar_model_file"))}
+    promo_price = compute_promotion_price(row)
+    result = {
+        **row,
+        "price": f'R$ {int(row.get("price_cents",0))/100:.2f}'.replace(".", ","),
+        "image_url": public_media(row.get("thumb_image")),
+        "video_url": public_media(row.get("video_file")),
+        "ar_model_url": public_media(row.get("ar_model_file")),
+        "promotion_price_cents": promo_price,
+        "has_active_promotion": promo_price is not None,
+    }
+    if promo_price is not None:
+        result["promotion_price"] = f'R$ {promo_price/100:.2f}'.replace(".", ",")
+    return result
 
 @router.post("/api/public/analytics")
 async def analytics(body: dict, request: Request):
@@ -77,12 +147,12 @@ async def public_bio_page(restaurant_slug: str, page_slug: str):
         raise HTTPException(404, "Página não encontrada ou ainda não publicada.")
     return {"html": page.get("html", ""), "project_name": page.get("project_name"), "updated_at": page.get("updated_at")}
 
-@router.get("/api/files/{file_id}")
-async def get_file(file_id: str): return await stream_file(file_id)
+@router.api_route("/api/files/{file_id}", methods=["GET", "HEAD"])
+async def get_file(file_id: str, request: Request): return await stream_file(file_id, request)
 
 @router.post("/api/webhooks/asaas")
 async def asaas_webhook(request: Request, tasks: BackgroundTasks):
-    expected = os.environ.get("ASAAS_WEBHOOK_SECRET", "")
+    expected = await get_asaas_webhook_secret()
     if not expected or request.headers.get("asaas-access-token", "") != expected: raise HTTPException(401, "Unauthorized")
     data = await request.json()
     if not data.get("event"): raise HTTPException(400, "Invalid payload")

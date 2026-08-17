@@ -125,6 +125,26 @@ webpackConfig.devServer = (devServerConfig) => {
     };
   }
 
+  // Uploads têm nome gerado por hash e nunca são reescritos, então podem ser
+  // cacheados indefinidamente. Sem isso o navegador rebaixa cada vídeo (~3MB) a
+  // cada reprodução, porque o express.static responde com max-age=0. O setHeaders
+  // do express roda depois do Cache-Control padrão, então é aqui que dá pra trocar.
+  const cacheUploads = (res, filePath) => {
+    if (filePath.includes("assets/uploads/")) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    }
+  };
+  const staticEntries = Array.isArray(devServerConfig.static)
+    ? devServerConfig.static
+    : devServerConfig.static
+      ? [devServerConfig.static]
+      : [];
+  staticEntries.forEach((entry) => {
+    if (entry && typeof entry === "object") {
+      entry.staticOptions = { ...(entry.staticOptions || {}), setHeaders: cacheUploads };
+    }
+  });
+
   return devServerConfig;
 };
 

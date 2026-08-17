@@ -7,6 +7,29 @@
 .legacy-dashboard-page .sidebar button.menu-item{width:100%;border:0;background:transparent;cursor:pointer}.legacy-dashboard-page .overlay.active{display:block}.restaurant-sidebar-identity{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:#f4581c;color:#fff;font-weight:800}
 .data-empty{text-align:center;padding:40px;color:var(--muted,#878d99)}.action-row{display:flex;gap:6px;flex-wrap:wrap}.clickable{cursor:pointer}.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9998;display:grid;place-items:center;padding:18px}.modal-panel{background:#222731;color:#fff;border-radius:14px;width:min(720px,100%);max-height:90vh;overflow:auto;padding:24px}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:20px}.modal-head button{color:#fff;border:0;background:rgba(255,255,255,.1);width:38px;height:38px;border-radius:50%}
 .public-menu-page button{font:inherit}.public-menu-page .featured,.public-menu-page .pcard{border:0;color:#fff;text-align:left;width:100%}.public-menu-page .reviewsEntryBtn{font:inherit}.public-menu-page .reviewsClose{font:inherit}.public-menu-page .modal{display:none}.public-menu-page .modal.show{display:block}.public-menu-page .socialIcon{border:0}.public-menu-page .ratingPicker button{font:inherit}
+/* Painel admin: botões só com ícone, badge de status discreto e switch compacto. */
+.btn.btn-icon{width:32px;height:32px;padding:0;justify-content:center;gap:0}
+.btn.btn-sm.btn-icon{width:30px;height:30px}
+.badge-soft{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:700;background:rgba(255,255,255,.06);color:var(--muted,#878d99);white-space:nowrap}
+.badge-soft i{font-size:9px}
+.badge-soft.is-active{color:#24d46c}
+.badge-soft.is-pending{color:#ff7b4b}
+.badge-soft.is-off{color:#ff5f57}
+.pm-switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.pm-switch input{position:absolute;width:1px;height:1px;opacity:0}
+.pm-switch-track{width:38px;height:20px;border-radius:999px;background:rgba(255,255,255,.16);position:relative;transition:background .18s ease;flex-shrink:0}
+.pm-switch-track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .18s ease}
+.pm-switch input:checked+.pm-switch-track{background:#b06ceb}
+.pm-switch input:checked+.pm-switch-track::after{transform:translateX(18px)}
+.pm-switch input:focus-visible+.pm-switch-track{outline:2px solid #f4581c;outline-offset:2px}
+.pm-switch-label{font-size:10px;font-weight:700;color:var(--muted,#878d99)}
+.pm-switch input:checked~.pm-switch-label{color:#b06ceb}
+.restaurant-filter-count{margin:-6px 0 14px;font-size:11px;color:var(--muted,#878d99)}
+.restaurant-approve-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:rgba(255,123,75,.1);border:1px solid rgba(255,123,75,.3);border-radius:10px;padding:16px 20px;margin-bottom:16px}
+.restaurant-approve-bar strong{display:block;color:#fff;font-size:14px}
+.restaurant-approve-bar span{font-size:12px;color:var(--muted,#878d99)}
+@media(prefers-reduced-motion:reduce){.pm-switch-track,.pm-switch-track::after{transition:none}}
+.pmWarmVideo{position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
 .public-back-link{position:fixed;top:14px;left:14px;z-index:9999;display:inline-flex;align-items:center;background:rgba(0,0,0,.65);color:#fff;font-size:13px;font-weight:700;padding:10px 16px;border-radius:999px;text-decoration:none;border:1px solid rgba(255,255,255,.2)}
 .route-map-placeholder{height:440px;border-radius:10px;background:#222731;border:1px solid rgba(255,255,255,.08);display:grid;place-items:center;color:#878d99}.material-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}.material-card{background:#222731;border-radius:10px;padding:20px}.material-card h3{margin:0 0 8px}.material-card p{color:#878d99;font-size:12px}
 .public-bio-page{margin:0;min-height:100vh;background:#111}.public-bio-error{min-height:100vh;display:grid;place-content:center;text-align:center;background:#17121d;color:#fff;padding:24px}.public-bio-error h1{color:#f4581c}

@@ -1,8 +1,11 @@
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
-from app_core import clean_doc, db, next_id, unique_slug, utcnow
+from bson import ObjectId
+
+from app_core import clean_doc, db, files, next_id, unique_slug, utcnow
 from auth_service import hash_password, require_roles
 from file_service import save_upload
 from qr_template_service import ensure_default_qr_templates, validate_qr_template
@@ -134,9 +137,35 @@ async def update_stop(stop_id: int, body: dict, user=Depends(require_roles("gere
     return {"ok": True}
 
 # SuperAdmin
+MONTH_LABELS = {1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"}
+
 @router.get("/superadmin/dashboard")
 async def super_dashboard(user=Depends(require_roles("superadmin"))):
-    return {"restaurants": await db.restaurants.count_documents({}), "active_restaurants": await db.restaurants.count_documents({"status": "active"}), "agents": await db.agents.count_documents({}), "pending_requests": await db.video_requests.count_documents({"status": "pending"}), "pending_withdrawals": await db.withdrawals.count_documents({"status": "pending"})}
+    restaurants = await db.restaurants.find({}, {"_id": 0, "status": 1, "created_at": 1}).to_list(200000)
+    now = datetime.now(timezone.utc)
+    year, month, month_keys = now.year, now.month, []
+    for _ in range(6):
+        month_keys.append(f"{year:04d}-{month:02d}")
+        month -= 1
+        if month == 0:
+            month, year = 12, year - 1
+    month_keys.reverse()
+    counts = {key: 0 for key in month_keys}
+    for r in restaurants:
+        key = str(r.get("created_at") or "")[:7]
+        if key in counts:
+            counts[key] += 1
+    signups_by_month = [{"label": MONTH_LABELS[int(key.split("-")[1])], "value": value} for key, value in counts.items()]
+    return {
+        "restaurants": len(restaurants),
+        "active_restaurants": sum(1 for r in restaurants if r.get("status") == "active"),
+        "pending_restaurants": sum(1 for r in restaurants if r.get("status") == "pending"),
+        "suspended_restaurants": sum(1 for r in restaurants if r.get("status") == "suspended"),
+        "agents": await db.agents.count_documents({}),
+        "pending_requests": await db.video_requests.count_documents({"status": "pending"}),
+        "pending_withdrawals": await db.withdrawals.count_documents({"status": "pending"}),
+        "signups_by_month": signups_by_month,
+    }
 
 @router.get("/superadmin/restaurants")
 async def super_restaurants(user=Depends(require_roles("superadmin"))):
@@ -144,8 +173,140 @@ async def super_restaurants(user=Depends(require_roles("superadmin"))):
     for row in rows: row["seller_name"] = agents.get(row.get("seller_agent_id"), "—")
     return rows
 
+@router.get("/superadmin/restaurants/{restaurant_id}")
+async def super_restaurant_detail(restaurant_id: int, user=Depends(require_roles("superadmin"))):
+    restaurant = await db.restaurants.find_one({"id": restaurant_id}, {"_id": 0, "password_hash": 0})
+    if not restaurant:
+        raise HTTPException(404, "Restaurante não encontrado.")
+    categories = await db.categories.find({"restaurant_id": restaurant_id}, {"_id": 0}).sort([("sort_order", 1), ("name", 1)]).to_list(1000)
+    products = await db.products.find({"restaurant_id": restaurant_id}, {"_id": 0}).sort([("sort_order", 1), ("title", 1)]).to_list(10000)
+    category_names = {category["id"]: category["name"] for category in categories}
+    for product in products:
+        product["category_name"] = category_names.get(product.get("category_id"), "Sem categoria")
+    with_video = sum(bool(product.get("video_file")) for product in products)
+    return {"restaurant": restaurant, "categories": categories, "products": products, "stats": {"products": len(products), "with_video": with_video, "without_video": len(products) - with_video}}
+
+@router.get("/superadmin/restaurants/{restaurant_id}/categories")
+async def super_restaurant_categories(restaurant_id: int, user=Depends(require_roles("superadmin"))):
+    return await db.categories.find({"restaurant_id": restaurant_id}, {"_id": 0}).sort([("sort_order", 1), ("name", 1)]).to_list(1000)
+
+@router.post("/superadmin/restaurants/{restaurant_id}/categories")
+async def super_restaurant_category_save(restaurant_id: int, body: dict, user=Depends(require_roles("superadmin"))):
+    name = str(body.get("name", "")).strip()
+    if not name:
+        raise HTTPException(422, "Informe o nome da categoria.")
+    if body.get("id"):
+        result = await db.categories.update_one({"id": int(body["id"]), "restaurant_id": restaurant_id}, {"$set": {"name": name, "sort_order": int(body.get("sort_order", 0))}})
+        if not result.matched_count:
+            raise HTTPException(404, "Categoria não encontrada.")
+        return {"ok": True, "message": "Categoria atualizada."}
+    doc = {"id": await next_id("categories"), "restaurant_id": restaurant_id, "name": name, "sort_order": int(body.get("sort_order", 0)), "is_active": 1, "created_at": utcnow()}
+    await db.categories.insert_one(doc.copy())
+    return clean_doc(doc)
+
+@router.patch("/superadmin/restaurants/{restaurant_id}/categories/{item_id}/{action}")
+async def super_restaurant_category_action(restaurant_id: int, item_id: int, action: str, user=Depends(require_roles("superadmin"))):
+    item = await db.categories.find_one({"id": item_id, "restaurant_id": restaurant_id}, {"_id": 0})
+    if not item:
+        raise HTTPException(404, "Categoria não encontrada.")
+    if action == "toggle":
+        await db.categories.update_one({"id": item_id}, {"$set": {"is_active": 0 if item.get("is_active") else 1}})
+    elif action == "delete":
+        await db.categories.delete_one({"id": item_id, "restaurant_id": restaurant_id})
+    else:
+        raise HTTPException(404)
+    return {"ok": True}
+
+@router.get("/superadmin/restaurants/{restaurant_id}/payments")
+async def super_restaurant_payments(restaurant_id: int, user=Depends(require_roles("superadmin"))):
+    return await db.subscriptions_payments.find({"restaurant_id": restaurant_id}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+@router.post("/superadmin/restaurants/{restaurant_id}/products/{product_id}")
+async def super_restaurant_product_save(
+    restaurant_id: int, product_id: int,
+    category_id: str = Form(""), title: str = Form(...), description: str = Form(""), allergens: str = Form(""),
+    price_cents: int = Form(0), sort_order: int = Form(0), is_active: bool = Form(True), ar_enabled: bool = Form(False), remove_video: bool = Form(False),
+    sizes: str = Form("[]"), option_groups: str = Form("[]"), standalone_options: str = Form("[]"),
+    promotion_active: bool = Form(False), promotion_type: str = Form(""), promotion_value: float = Form(0),
+    promotion_condition: str = Form(""), promotion_label: str = Form(""), promotion_start: str = Form(""), promotion_end: str = Form(""),
+    thumb_image: UploadFile | None = File(None), video_file: UploadFile | None = File(None), ar_model_file: UploadFile | None = File(None),
+    user=Depends(require_roles("superadmin")),
+):
+    restaurant = await db.restaurants.find_one({"id": restaurant_id}, {"_id": 0})
+    product = await db.products.find_one({"id": product_id, "restaurant_id": restaurant_id}, {"_id": 0})
+    if not restaurant or not product:
+        raise HTTPException(404, "Restaurante ou produto não encontrado.")
+    if video_file and video_file.filename and not restaurant.get("is_model"):
+        raise HTTPException(422, "O envio direto de vídeos está disponível apenas para restaurantes modelo.")
+
+    def parse_list(raw):
+        try:
+            value = json.loads(raw or "[]")
+            return value if isinstance(value, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    valid_sizes = [{"name": str(item.get("name", "")).strip(), "price_cents": int(item.get("price_cents", 0) or 0)} for item in parse_list(sizes) if isinstance(item, dict) and str(item.get("name", "")).strip()]
+    valid_groups = []
+    for group in parse_list(option_groups):
+        if not isinstance(group, dict) or not str(group.get("name", "")).strip():
+            continue
+        options = [{"name": str(option.get("name", "")).strip(), "price_cents": int(option.get("price_cents", 0) or 0)} for option in (group.get("options") or []) if isinstance(option, dict) and str(option.get("name", "")).strip()]
+        if options:
+            valid_groups.append({"name": str(group["name"]).strip(), "options": options})
+    valid_standalone = [{"name": str(item.get("name", "")).strip(), "price_cents": int(item.get("price_cents", 0) or 0)} for item in parse_list(standalone_options) if isinstance(item, dict) and str(item.get("name", "")).strip()]
+    promotion = {"active": bool(promotion_active), "type": promotion_type if promotion_type in ("percentage", "fixed") else "", "value": float(promotion_value or 0), "condition": promotion_condition.strip(), "label": promotion_label.strip(), "start_date": promotion_start.strip(), "end_date": promotion_end.strip()}
+    values = {"category_id": int(category_id) if category_id else None, "title": title.strip(), "description": description.strip(), "allergens": allergens or None, "price_cents": price_cents, "sort_order": sort_order, "is_active": int(is_active), "ar_enabled": int(ar_enabled), "sizes": valid_sizes, "option_groups": valid_groups, "standalone_options": valid_standalone, "promotion": promotion}
+    thumb = await save_upload(thumb_image, "thumbs")
+    video = await save_upload(video_file, "videos") if restaurant.get("is_model") else None
+    model = await save_upload(ar_model_file, "models3d")
+    if thumb:
+        values["thumb_image"] = thumb["path"]
+    if video:
+        values["video_file"] = video["path"]
+    if model:
+        values["ar_model_file"] = model["path"]
+    if remove_video:
+        values["video_file"] = None
+    await db.products.update_one({"id": product_id, "restaurant_id": restaurant_id}, {"$set": values})
+    return {"ok": True, "id": product_id, "video_file": values.get("video_file", product.get("video_file"))}
+
+async def _drop_gridfs_files(paths):
+    """Remove do GridFS os arquivos referenciados por documentos já apagados."""
+    for path in paths:
+        if not path or not str(path).startswith("/api/files/"):
+            continue
+        try:
+            await files.delete(ObjectId(str(path).rsplit("/", 1)[-1]))
+        except Exception:
+            continue
+
+async def delete_restaurant(restaurant_id: int):
+    """Apaga o restaurante e todo o conteúdo dele. Registros financeiros (comissões,
+    pagamentos e saques) são preservados para auditoria."""
+    products = await db.products.find({"restaurant_id": restaurant_id}, {"_id": 0, "thumb_image": 1, "video_file": 1, "ar_model_file": 1}).to_list(20000)
+    settings = await db.settings.find({"restaurant_id": restaurant_id}, {"_id": 0, "logo_image": 1, "cover_image": 1}).to_list(100)
+    requests = await db.video_requests.find({"restaurant_id": restaurant_id}, {"_id": 0, "id": 1, "image_file": 1, "video_file": 1}).to_list(10000)
+    request_ids = [item["id"] for item in requests]
+    items = await db.video_request_items.find({"request_id": {"$in": request_ids}}, {"_id": 0, "image_file": 1, "video_file": 1}).to_list(50000)
+
+    for collection in ["categories", "products", "settings", "establishments", "establishment_product_overrides",
+                       "restaurant_reviews", "menu_analytics_events", "bio_pages", "menu_import_jobs", "video_requests"]:
+        await db[collection].delete_many({"restaurant_id": restaurant_id})
+    if request_ids:
+        await db.video_request_items.delete_many({"request_id": {"$in": request_ids}})
+    await db.restaurants.delete_one({"id": restaurant_id})
+
+    media = [value for document in [*products, *settings, *requests, *items] for value in document.values()]
+    await _drop_gridfs_files(media)
+
 @router.post("/superadmin/restaurants")
 async def super_restaurant(body: dict, user=Depends(require_roles("superadmin"))):
+    if body.get("action") == "delete":
+        item = await db.restaurants.find_one({"id": int(body.get("id", 0))}, {"_id": 0, "id": 1})
+        if not item: raise HTTPException(404, "Restaurante não encontrado.")
+        await delete_restaurant(item["id"])
+        return {"ok": True}
     if body.get("action") in {"toggle", "activate", "toggle_model"}:
         item = await db.restaurants.find_one({"id": int(body["id"])}, {"_id": 0})
         if not item: raise HTTPException(404)
@@ -153,6 +314,19 @@ async def super_restaurant(body: dict, user=Depends(require_roles("superadmin"))
         elif body["action"] == "activate": update = {"is_active": 1, "status": "active", "activated_at": utcnow()}
         else: update = {"is_model": 0 if item.get("is_model") else 1}
         await db.restaurants.update_one({"id": item["id"]}, {"$set": update}); return {"ok": True}
+    if body.get("action") == "update_profile":
+        item_id = int(body["id"])
+        if not await db.restaurants.find_one({"id": item_id}, {"_id": 1}): raise HTTPException(404, "Restaurante não encontrado.")
+        email = body.get("email")
+        if email and await db.restaurants.find_one({"email": email, "id": {"$ne": item_id}}, {"_id": 1}): raise HTTPException(409, "E-mail já cadastrado por outro restaurante.")
+        fields = {k: body.get(k) for k in ["name", "email", "phone", "cpf_cnpj", "address", "cep", "street", "number", "complement", "district", "city", "state"] if k in body}
+        await db.restaurants.update_one({"id": item_id}, {"$set": fields}); return {"ok": True}
+    if body.get("action") == "assign_plan":
+        item_id, plan_id = int(body["id"]), int(body.get("plan_id", 0))
+        if not await db.restaurants.find_one({"id": item_id}, {"_id": 1}): raise HTTPException(404, "Restaurante não encontrado.")
+        plan = await db.plans.find_one({"id": plan_id, "is_active": 1}, {"_id": 0})
+        if not plan: raise HTTPException(404, "Plano não encontrado ou inativo.")
+        await db.restaurants.update_one({"id": item_id}, {"$set": {"plan_id": plan["id"]}}); return {"ok": True}
     password = str(body.get("password", ""))
     if len(password) < 4: raise HTTPException(422, "Preencha a senha com no mínimo 4 caracteres.")
     if await db.restaurants.find_one({"email": body.get("email")}, {"_id": 1}): raise HTTPException(409, "E-mail já cadastrado.")
@@ -322,6 +496,12 @@ async def super_settings(user=Depends(require_roles("superadmin"))):
     values = {r["setting_key"]: r.get("setting_value", "") for r in await db.app_settings.find({}, {"_id": 0}).to_list(1000)}
     values["ai_api_key_configured"] = bool(values.get("ai_api_key"))
     values["ai_api_key"] = ""
+    values["asaas_api_key_configured"] = bool(values.get("asaas_api_key"))
+    values["asaas_api_key"] = ""
+    values["asaas_webhook_secret_configured"] = bool(values.get("asaas_webhook_secret"))
+    values["asaas_webhook_secret"] = ""
+    values["evolution_api_key_configured"] = bool(values.get("evolution_api_key"))
+    values["evolution_api_key"] = ""
     return values
 
 @router.post("/superadmin/settings")
@@ -329,11 +509,14 @@ async def save_super_settings(body: dict, user=Depends(require_roles("superadmin
     allowed = {
         "smtp_host", "smtp_port", "smtp_secure", "smtp_user", "smtp_pass", "smtp_from", "smtp_from_name",
         "ai_provider", "ai_api_url", "ai_api_key", "ai_model", "ai_timeout_seconds",
+        "asaas_api_key", "asaas_base_url", "asaas_webhook_secret",
+        "evolution_api_url", "evolution_api_key",
     }
+    secret_keys = {"ai_api_key", "asaas_api_key", "asaas_webhook_secret", "evolution_api_key"}
     for key, value in body.items():
         if key not in allowed:
             continue
-        if key == "ai_api_key" and not str(value or "").strip():
+        if key in secret_keys and not str(value or "").strip():
             continue
         await db.app_settings.update_one(
             {"setting_key": key},
@@ -344,10 +527,11 @@ async def save_super_settings(body: dict, user=Depends(require_roles("superadmin
 
 @router.get("/superadmin/platform-settings")
 async def platform_settings(user=Depends(require_roles("superadmin"))):
-    return await db.platform_settings.find_one({"id": 1}, {"_id": 0}) or {"id": 1, "adesao_cents": 29900, "mensalidade_cents": 9900, "video_price_cents": 4900, "min_withdrawal_cents": 5000, "override_pct_adesao": 5, "override_pct_mensalidade": 5}
+    return await db.platform_settings.find_one({"id": 1}, {"_id": 0}) or {"id": 1, "mensalidade_cents": 9900, "video_price_cents": 4900, "min_withdrawal_cents": 5000, "override_pct_adesao": 5, "override_pct_mensalidade": 5}
 
 @router.post("/superadmin/platform-settings")
 async def save_platform_settings(body: dict, user=Depends(require_roles("superadmin"))):
-    values = {key: (float(body.get(key, 0)) if key.startswith("override_") else int(body.get(key, 0))) for key in ["adesao_cents", "mensalidade_cents", "video_price_cents", "min_withdrawal_cents", "override_pct_adesao", "override_pct_mensalidade"]}
+    # A adesão deixou de ser cobrada: o restaurante paga apenas o plano escolhido.
+    values = {key: (float(body.get(key, 0)) if key.startswith("override_") else int(body.get(key, 0))) for key in ["mensalidade_cents", "video_price_cents", "min_withdrawal_cents", "override_pct_adesao", "override_pct_mensalidade"]}
     await db.platform_settings.update_one({"id": 1}, {"$set": values}, upsert=True)
     return {"ok": True}

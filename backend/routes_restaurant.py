@@ -13,6 +13,7 @@ from app_core import clean_doc, db, next_id, slugify, utcnow
 from asaas_service import plan_discount, start_billing
 from auth_service import hash_password, require_roles, verify_password
 from file_service import save_upload
+from mail_service import send_verification
 from qr_template_service import active_qr_templates
 
 router = APIRouter(prefix="/api/restaurant", tags=["restaurant"])
@@ -56,12 +57,111 @@ async def category_action(item_id: int, action: str, user=Depends(guard)):
     else: raise HTTPException(404)
     return {"ok": True}
 
+# ── Mover produtos para outra categoria ──
+@router.post("/products/move-category")
+async def move_products_category(body: dict, user=Depends(guard)):
+    product_ids = body.get("product_ids", [])
+    target_category_id = int(body.get("target_category_id", 0))
+    if not product_ids or not target_category_id:
+        raise HTTPException(422, "Selecione produtos e uma categoria de destino.")
+    cat = await db.categories.find_one({"id": target_category_id, "restaurant_id": user["id"]}, {"_id": 0})
+    if not cat:
+        raise HTTPException(404, "Categoria não encontrada.")
+    result = await db.products.update_many(
+        {"id": {"$in": [int(pid) for pid in product_ids]}, "restaurant_id": user["id"]},
+        {"$set": {"category_id": target_category_id}}
+    )
+    return {"ok": True, "moved": result.modified_count, "category_name": cat["name"]}
+
+# ── Estabelecimentos (múltiplos por empresa) ──
+@router.get("/establishments")
+async def establishments(user=Depends(guard)):
+    return await db.establishments.find({"restaurant_id": user["id"]}, {"_id": 0}).sort([("sort_order", 1), ("name", 1)]).to_list(1000)
+
+@router.post("/establishments")
+async def establishment_save(body: dict, user=Depends(guard)):
+    name = str(body.get("name", "")).strip()
+    if not name:
+        raise HTTPException(422, "Informe o nome do estabelecimento.")
+    values = {
+        "name": name,
+        "address": str(body.get("address", "")).strip() or None,
+        "phone": str(body.get("phone", "")).strip() or None,
+        "latitude": body.get("latitude"),
+        "longitude": body.get("longitude"),
+        "opening_hours": str(body.get("opening_hours", "")).strip() or None,
+        "is_active": int(body.get("is_active", 1)),
+        "sort_order": int(body.get("sort_order", 0)),
+    }
+    if body.get("id"):
+        await db.establishments.update_one(
+            {"id": int(body["id"]), "restaurant_id": user["id"]},
+            {"$set": values}
+        )
+        return {"ok": True, "message": "Estabelecimento atualizado."}
+    values.update({
+        "id": await next_id("establishments"),
+        "restaurant_id": user["id"],
+        "created_at": utcnow(),
+    })
+    await db.establishments.insert_one(values.copy())
+    return clean_doc(values)
+
+@router.patch("/establishments/{item_id}/{action}")
+async def establishment_action(item_id: int, action: str, user=Depends(guard)):
+    item = await owned("establishments", item_id, user)
+    if action == "toggle":
+        await db.establishments.update_one({"id": item_id}, {"$set": {"is_active": 0 if item.get("is_active") else 1}})
+    elif action == "delete":
+        await db.establishments.delete_one({"id": item_id, "restaurant_id": user["id"]})
+    else:
+        raise HTTPException(404)
+    return {"ok": True}
+
+# ── Produtos por estabelecimento (personalização) ──
+@router.post("/establishments/{est_id}/product-overrides")
+async def save_product_override(est_id: int, body: dict, user=Depends(guard)):
+    await owned("establishments", est_id, user)
+    product_id = int(body.get("product_id", 0))
+    if not product_id:
+        raise HTTPException(422, "Produto não informado.")
+    await owned("products", product_id, user)
+    override = {
+        "available": body.get("available", True),
+        "price_cents_override": body.get("price_cents_override"),
+        "sizes_override": body.get("sizes_override"),
+    }
+    await db.establishment_product_overrides.update_one(
+        {"establishment_id": est_id, "product_id": product_id, "restaurant_id": user["id"]},
+        {"$set": override, "$setOnInsert": {"id": await next_id("establishment_product_overrides"), "restaurant_id": user["id"], "establishment_id": est_id, "product_id": product_id, "created_at": utcnow()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+@router.get("/establishments/{est_id}/product-overrides")
+async def get_product_overrides(est_id: int, user=Depends(guard)):
+    await owned("establishments", est_id, user)
+    return await db.establishment_product_overrides.find(
+        {"establishment_id": est_id, "restaurant_id": user["id"]}, {"_id": 0}
+    ).to_list(10000)
+
+def _has_media(value) -> bool:
+    return bool(str(value or "").strip())
+
+def _is_incomplete(row: dict) -> bool:
+    """Produto incompleto: falta nome, descrição, categoria ou preço."""
+    return not str(row.get("title") or "").strip() or not str(row.get("description") or "").strip() or not row.get("category_id") or not int(row.get("price_cents") or 0)
+
 @router.get("/products")
-async def products(cat: int = 0, q: str = "", user=Depends(guard)):
+async def products(cat: int = 0, q: str = "", photo: str = "", video: str = "", incomplete: int = 0, user=Depends(guard)):
     query = {"restaurant_id": user["id"]}
     if cat: query["category_id"] = cat
     if q: query["$or"] = [{"title": {"$regex": q, "$options": "i"}}, {"description": {"$regex": q, "$options": "i"}}]
     rows = await db.products.find(query, {"_id": 0}).sort([("is_featured", -1), ("sort_order", 1), ("id", -1)]).to_list(5000)
+    if photo in {"with", "without"}: rows = [row for row in rows if _has_media(row.get("thumb_image")) == (photo == "with")]
+    if video in {"with", "without"}: rows = [row for row in rows if _has_media(row.get("video_file")) == (video == "with")]
+    if incomplete: rows = [row for row in rows if _is_incomplete(row)]
+    for row in rows: row["is_incomplete"] = _is_incomplete(row)
     categories_map = {r["id"]: r["name"] for r in await db.categories.find({"restaurant_id": user["id"]}, {"_id": 0}).to_list(1000)}
     for row in rows: row["category_name"] = categories_map.get(row.get("category_id"), "—")
     return rows
@@ -74,9 +174,62 @@ async def product(item_id: int, user=Depends(guard)):
 async def product_save(
     id: int = Form(0), category_id: str = Form(""), title: str = Form(...), description: str = Form(""), allergens: str = Form(""),
     price_cents: int = Form(0), sort_order: int = Form(0), is_active: bool = Form(True), ar_enabled: bool = Form(False), remove_video: bool = Form(False),
+    sizes: str = Form("[]"),
+    option_groups: str = Form("[]"),
+    standalone_options: str = Form("[]"),
+    promotion_active: bool = Form(False), promotion_type: str = Form(""), promotion_value: float = Form(0),
+    promotion_condition: str = Form(""), promotion_label: str = Form(""), promotion_start: str = Form(""), promotion_end: str = Form(""),
     thumb_image: UploadFile | None = File(None), video_file: UploadFile | None = File(None), ar_model_file: UploadFile | None = File(None), user=Depends(guard)
 ):
-    values = {"category_id": int(category_id) if category_id else None, "title": title.strip(), "description": description.strip(), "allergens": allergens or None, "price_cents": price_cents, "sort_order": sort_order, "is_active": int(is_active), "ar_enabled": int(ar_enabled)}
+    # Parse sizes JSON
+    try:
+        sizes_list = json.loads(sizes) if sizes else []
+    except (json.JSONDecodeError, TypeError):
+        sizes_list = []
+    valid_sizes = []
+    for s in sizes_list:
+        if isinstance(s, dict) and s.get("name"):
+            valid_sizes.append({"name": str(s["name"]).strip(), "price_cents": int(s.get("price_cents", 0))})
+
+    # Parse option_groups JSON (grupos de opções: tamanho, sabor, borda, etc.)
+    try:
+        groups_raw = json.loads(option_groups) if option_groups else []
+    except (json.JSONDecodeError, TypeError):
+        groups_raw = []
+    valid_groups = []
+    for g in groups_raw:
+        if isinstance(g, dict) and g.get("name"):
+            opts = []
+            for o in (g.get("options") or []):
+                if isinstance(o, dict) and o.get("name"):
+                    opts.append({"name": str(o["name"]).strip(), "price_cents": int(o.get("price_cents", 0))})
+            if opts:
+                valid_groups.append({"name": str(g["name"]).strip(), "options": opts})
+
+    # Parse standalone_options JSON (opções avulsas sem grupo)
+    try:
+        standalone_raw = json.loads(standalone_options) if standalone_options else []
+    except (json.JSONDecodeError, TypeError):
+        standalone_raw = []
+    valid_standalone = []
+    for o in standalone_raw:
+        if isinstance(o, dict) and o.get("name"):
+            valid_standalone.append({"name": str(o["name"]).strip(), "price_cents": int(o.get("price_cents", 0))})
+
+    # Build promotion object
+    promotion = {
+        "active": bool(promotion_active),
+        "type": promotion_type if promotion_type in ("percentage", "fixed") else "",
+        "value": float(promotion_value) if promotion_value else 0,
+        "condition": promotion_condition.strip() if promotion_condition else "",
+        "label": promotion_label.strip() if promotion_label else "",
+        "start_date": promotion_start.strip() if promotion_start else "",
+        "end_date": promotion_end.strip() if promotion_end else "",
+    }
+
+    values = {"category_id": int(category_id) if category_id else None, "title": title.strip(), "description": description.strip(), "allergens": allergens or None, "price_cents": price_cents, "sort_order": sort_order, "is_active": int(is_active), "ar_enabled": int(ar_enabled), "sizes": valid_sizes, "option_groups": valid_groups, "standalone_options": valid_standalone, "promotion": promotion}
+    if video_file and video_file.filename and not user.get("is_model"):
+        raise HTTPException(422, "O envio direto de vídeos está disponível apenas para restaurantes modelo.")
     thumb = await save_upload(thumb_image, "thumbs"); video = await save_upload(video_file, "videos") if user.get("is_model") else None; model = await save_upload(ar_model_file, "models3d")
     if thumb: values["thumb_image"] = thumb["path"]
     if video: values["video_file"] = video["path"]
@@ -231,15 +384,43 @@ async def qr_kit(user=Depends(guard)):
             "slug": restaurant.get("slug"),
             "logo_image": settings.get("logo_image"),
         },
-        "menu_path": f'/cardapio?r={restaurant.get("slug")}',
+        "menu_path": f'/{restaurant.get("slug")}',
         "templates": await active_qr_templates(),
     }
 
+def compose_address(street: str, number: str, complement: str, district: str, city: str, state: str, cep: str):
+    line = ", ".join(part for part in [street.strip(), number.strip(), complement.strip(), district.strip()] if part.strip())
+    place = " - ".join(part for part in [city.strip(), state.strip().upper()] if part.strip())
+    full = ", ".join(part for part in [line, place] if part)
+    cep_digits = "".join(filter(str.isdigit, cep))
+    if full and len(cep_digits) == 8:
+        return f"{full}, CEP {cep_digits[:5]}-{cep_digits[5:]}"
+    return full
+
 @router.post("/wizard")
-async def wizard(store_name: str = Form(...), instagram: str = Form(""), whatsapp: str = Form(""), address: str = Form(""), latitude: str = Form(""), longitude: str = Form(""), logo_image: UploadFile | None = File(None), cover_image: UploadFile | None = File(None), user=Depends(guard)):
-    await save_settings(store_name, "", "Antenado", instagram, whatsapp, "[]", logo_image, cover_image, user)
-    await db.restaurants.update_one({"id": user["id"]}, {"$set": {"address": address or None, "latitude": float(latitude) if latitude else None, "longitude": float(longitude) if longitude else None}})
-    return {"ok": True}
+async def wizard(store_name: str = Form(...), instagram: str = Form(""), whatsapp: str = Form(""), social_links: str = Form("[]"), cep: str = Form(""), street: str = Form(""), number: str = Form(""), complement: str = Form(""), district: str = Form(""), city: str = Form(""), state: str = Form(""), address: str = Form(""), logo_image: UploadFile | None = File(None), cover_image: UploadFile | None = File(None), user=Depends(guard)):
+    await save_settings(store_name, "", "Antenado", instagram, whatsapp, social_links, logo_image, cover_image, user)
+    full_address = address.strip() or compose_address(street, number, complement, district, city, state, cep)
+    await db.restaurants.update_one({"id": user["id"]}, {"$set": {
+        "address": full_address or None,
+        "cep": "".join(filter(str.isdigit, cep)) or None,
+        "street": street.strip() or None,
+        "number": number.strip() or None,
+        "complement": complement.strip() or None,
+        "district": district.strip() or None,
+        "city": city.strip() or None,
+        "state": state.strip().upper() or None,
+        "onboarding_completed_at": utcnow(),
+    }})
+    restaurant = await db.restaurants.find_one({"id": user["id"]}, {"_id": 0}) or user
+    email_sent = False
+    if not restaurant.get("email_verified_at"):
+        try:
+            await send_verification("restaurant", restaurant)
+            email_sent = True
+        except Exception:
+            email_sent = False
+    return {"ok": True, "verification_email_sent": email_sent}
 
 @router.get("/profile")
 async def profile(user=Depends(guard)): return user
@@ -252,6 +433,14 @@ async def profile_update(body: dict, user=Depends(guard)):
         if not verify_password(str(body.get("current_password", "")), raw.get("password_hash", "")): raise HTTPException(422, "Senha atual incorreta.")
         if len(str(body.get("new_password", ""))) < 6 or body.get("new_password") != body.get("confirm_password"): raise HTTPException(422, "Revise a nova senha e sua confirmação.")
         await db.restaurants.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_password(body["new_password"])}})
+    elif action == "update_address":
+        # Mesmos campos preenchidos no onboarding, agora editáveis pelo perfil.
+        fields = {key: str(body.get(key) or "").strip() for key in ["cep", "street", "number", "complement", "district", "city", "state"]}
+        values = {key: (value or None) for key, value in fields.items()}
+        values["cep"] = "".join(filter(str.isdigit, fields["cep"])) or None
+        values["state"] = fields["state"].upper() or None
+        values["address"] = str(body.get("address") or "").strip() or compose_address(fields["street"], fields["number"], fields["complement"], fields["district"], fields["city"], fields["state"], fields["cep"]) or None
+        await db.restaurants.update_one({"id": user["id"]}, {"$set": values})
     else:
         values = {k: body.get(k) for k in ["name", "email", "phone", "cpf_cnpj"] if k in body}
         if values.get("email") and values["email"].lower() != user.get("email", "").lower(): values.update({"email_verified_at": None, "email_verification_token": None, "email_verification_sent_at": None})
@@ -311,7 +500,7 @@ async def bio_pages(user=Depends(guard)):
             "updatedAt": row.get("updated_at"),
             "published": bool(row.get("published")),
             "slug": row.get("slug"),
-            "publicUrl": f'/bio/{restaurant.get("slug")}/{row.get("slug")}' if row.get("published") else None,
+            "publicUrl": f'/{restaurant.get("slug")}/{row.get("slug")}' if row.get("published") else None,
         })
         result.append(state)
     return result
@@ -349,7 +538,7 @@ async def save_bio_page(body: dict, user=Depends(guard)):
         upsert=True,
     )
     restaurant = await db.restaurants.find_one({"id": user["id"]}, {"_id": 0, "slug": 1})
-    return {"ok": True, "slug": slug, "published": bool(values.get("published", (existing or {}).get("published"))), "public_url": f'/bio/{restaurant.get("slug")}/{slug}'}
+    return {"ok": True, "slug": slug, "published": bool(values.get("published", (existing or {}).get("published"))), "public_url": f'/{restaurant.get("slug")}/{slug}'}
 
 @router.delete("/bio-pages/{project_id}")
 async def delete_bio_page(project_id: str, user=Depends(guard)):

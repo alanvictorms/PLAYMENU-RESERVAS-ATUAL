@@ -26,7 +26,8 @@ class RegisterBody(BaseModel):
 @router.post("/login")
 async def login(body: LoginBody):
     user = await find_login(body.email.strip(), body.password)
-    redirect = "/admin/configuracao-inicial" if user["role"] == "restaurant" and user.get("status") == "pending" else {
+    pending_onboarding = user["role"] == "restaurant" and user.get("status") == "pending" and not user.get("onboarding_completed_at")
+    redirect = "/admin/configuracao-inicial" if pending_onboarding else {
         "superadmin": "/superadmin", "gerente": "/gerente", "representante": "/representante", "restaurant": "/admin"
     }[user["role"]]
     return {"token": issue_token(user), "role": user["role"], "redirect": redirect, "user": {k: v for k, v in user.items() if k not in {"password_hash", "_id"}}}
@@ -37,8 +38,8 @@ async def me(user=Depends(current_user)):
 
 @router.post("/register")
 async def register(body: RegisterBody):
-    if len(body.password) < 4:
-        raise HTTPException(422, "A senha deve ter no mínimo 4 caracteres.")
+    if len(body.password) < 6:
+        raise HTTPException(422, "A senha deve ter no mínimo 6 caracteres.")
     if await db.restaurants.find_one({"email": body.email}, {"_id": 1}) or await db.agents.find_one({"email": body.email}, {"_id": 1}):
         raise HTTPException(409, "E-mail já cadastrado.")
     if body.tipo == "representante":

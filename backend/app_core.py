@@ -16,11 +16,14 @@ files = AsyncIOMotorGridFSBucket(db, bucket_name="playmenu_files")
 
 COLLECTIONS = {
     "admins", "agents", "agent_routes", "agent_route_stops", "app_settings",
-    "categories", "commissions", "commission_rules", "menu_analytics_events",
-    "password_resets", "plans", "platform_settings", "products", "restaurants",
-    "restaurant_reviews", "settings", "subscriptions_payments", "support_materials",
-    "video_requests", "video_request_items", "withdrawals", "bio_pages",
-    "qr_templates", "menu_import_jobs",
+    "categories", "commissions", "commission_rules", "establishments",
+    "menu_analytics_events", "password_resets", "plans", "platform_settings",
+    "products", "restaurants", "restaurant_reviews", "settings",
+    "subscriptions_payments", "support_materials", "video_requests",
+    "video_request_items", "withdrawals", "bio_pages", "qr_templates",
+    "menu_import_jobs", "reservation_settings", "reservations",
+    "booking_customers", "waitlist_entries", "whatsapp_instances",
+    "whatsapp_message_logs",
 }
 
 def utcnow():
@@ -42,6 +45,16 @@ async def next_id(collection: str) -> int:
     row = await db[collection].find_one({}, {"_id": 0, "id": 1}, sort=[("id", -1)])
     return int((row or {}).get("id") or 0) + 1
 
+# Segmentos usados pelas rotas do aplicativo — um restaurante nunca pode receber um
+# slug igual a um deles, senão playmenu.app/<slug> colidiria com uma página interna.
+# A mesma lista existe no frontend em src/constants/reservedSlugs.js.
+RESERVED_SLUGS = {
+    "admin", "api", "assets", "bio", "bio-builder", "cadastro", "cardapio",
+    "favicon.ico", "fila", "gerente", "index.html", "login", "manifest.json", "public",
+    "recuperar-senha", "representante", "robots.txt", "sair", "sitemap.xml",
+    "static", "superadmin", "reserva", "validar-email",
+}
+
 def slugify(value: str) -> str:
     import unicodedata
     value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode().lower()
@@ -61,7 +74,7 @@ def public_media(path: str | None) -> str | None:
 async def unique_slug(name: str) -> str:
     base = slugify(name)
     slug, index = base, 2
-    while await db.restaurants.find_one({"slug": slug}, {"_id": 1}):
+    while slug in RESERVED_SLUGS or await db.restaurants.find_one({"slug": slug}, {"_id": 1}):
         slug, index = f"{base}-{index}", index + 1
     return slug
 
